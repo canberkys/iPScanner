@@ -12,9 +12,16 @@ final class ScanController {
 
     static let portScanHostConcurrency = 4
 
+    struct ImportedTargets {
+        let url: URL
+        let targets: [String]
+        let invalidLineCount: Int
+    }
+
     var rangeInput: String = ""
     var searchQuery: String = ""
     var profile: ScanProfile = .standard
+    private(set) var importedTargets: ImportedTargets?
     var rescanInterval: RescanInterval = .off {
         didSet { handleRescanIntervalChange() }
     }
@@ -168,26 +175,67 @@ final class ScanController {
     }
 
     func detectDefaultSubnetIfNeeded() {
-        guard rangeInput.isEmpty else { return }
+        guard rangeInput.isEmpty, importedTargets == nil else { return }
         if let subnet = NetworkInterface.defaultSubnet() {
             rangeInput = subnet
         }
     }
 
+    // MARK: - Imported targets (file)
+
+    /// Result of attempting to load a target list file. Surfaced on the controller so the UI can render warnings.
+    struct ImportSummary {
+        let targetCount: Int
+        let invalidLineCount: Int
+    }
+
+    @discardableResult
+    func loadImportedFile(url: URL) throws -> ImportSummary {
+        let result = try TargetFileParser.parse(url: url)
+        if result.targets.isEmpty {
+            throw TargetFileParser.ParseError.noTargets
+        }
+        importedTargets = ImportedTargets(
+            url: url,
+            targets: result.targets,
+            invalidLineCount: result.invalidLines.count
+        )
+        lastError = nil
+        return ImportSummary(
+            targetCount: result.targets.count,
+            invalidLineCount: result.invalidLines.count
+        )
+    }
+
+    func clearImportedFile() {
+        importedTargets = nil
+    }
+
     func start() {
         guard !isScanning else { return }
-        let parsed = ScanRange.parseAll(rangeInput)
-        if let badIdx = parsed.firstInvalidIndex {
-            lastError = "Invalid range (chunk \(badIdx)). E.g. 10.0.0.0/24, 192.168.1.0/24, 172.16.5.50-172.16.5.100"
-            return
+
+        let addresses: [String]
+        if let imported = importedTargets {
+            addresses = imported.targets
+        } else {
+            let parsed = ScanRange.parseAll(rangeInput)
+            if let badIdx = parsed.firstInvalidIndex {
+                lastError = "Invalid range (chunk \(badIdx)). E.g. 10.0.0.0/24, 192.168.1.0/24, 172.16.5.50-172.16.5.100"
+                return
+            }
+            guard !parsed.ranges.isEmpty else {
+                lastError = "Enter an IP range (e.g. 10.0.0.0/24)."
+                return
+            }
+            addresses = ScanRange.uniqueAddresses(parsed.ranges)
         }
-        guard !parsed.ranges.isEmpty else {
-            lastError = "Enter an IP range (e.g. 10.0.0.0/24)."
-            return
-        }
-        let addresses = ScanRange.uniqueAddresses(parsed.ranges)
+
         if addresses.count > 65_536 {
-            lastError = "Total range too large (\(addresses.count) hosts). Try a narrower CIDR."
+            lastError = "Total target list too large (\(addresses.count) hosts). Narrow the range or split the file."
+            return
+        }
+        guard !addresses.isEmpty else {
+            lastError = "No targets to scan."
             return
         }
 
@@ -408,6 +456,7 @@ final class ScanController {
         scanTask = nil
         elapsedTimer?.invalidate()
         elapsedTimer = nil
+        importedTargets = nil
         rangeInput = snapshot.rangeInput
         let restored = snapshot.hosts.map { rec in
             Host(
