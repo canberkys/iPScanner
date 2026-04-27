@@ -12,7 +12,14 @@ struct ContentView: View {
     @State private var renamingRange: SavedRange?
     @State private var showingWarnings = false
     @State private var showingDiff = false
+    @State private var importAlert: ImportAlert?
     @FocusState private var searchFieldFocused: Bool
+
+    private struct ImportAlert: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
 
     // Column visibility (persisted) — Status, Device icon, IP always visible.
     @AppStorage("iPScanner.col.label") private var showColLabel = true
@@ -145,6 +152,9 @@ struct ContentView: View {
                 controller.renameSavedRange(saved.range, to: newName)
             }
         }
+        .alert(item: $importAlert) { alert in
+            Alert(title: Text(alert.title), message: Text(alert.message), dismissButton: .default(Text("OK")))
+        }
     }
 
     // MARK: - Sidebar
@@ -226,21 +236,36 @@ struct ContentView: View {
     @ViewBuilder
     private var toolbar: some View {
         HStack(spacing: 10) {
-            TextField("10.0.0.0/24, 192.168.1.0/24, 172.16.5.50-172.16.5.100", text: $controller.rangeInput)
-                .textFieldStyle(.roundedBorder)
-                .frame(maxWidth: 380)
-                .onSubmit { if !controller.isScanning { controller.start() } }
+            if let imported = controller.importedTargets {
+                importedChip(imported)
+            } else {
+                TextField("10.0.0.0/24, 192.168.1.0/24, 172.16.5.50-172.16.5.100", text: $controller.rangeInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 380)
+                    .onSubmit { if !controller.isScanning { controller.start() } }
+
+                Button {
+                    controller.toggleSaveCurrentRange()
+                } label: {
+                    Image(systemName: controller.isCurrentRangeSaved ? "star.fill" : "star")
+                        .foregroundStyle(controller.isCurrentRangeSaved ? .yellow : .secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(controller.rangeInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                .help(controller.isCurrentRangeSaved ? "Remove from saved" : "Save range")
+                .accessibilityLabel(controller.isCurrentRangeSaved ? "Remove from saved" : "Save range")
+            }
 
             Button {
-                controller.toggleSaveCurrentRange()
+                openTargetFile()
             } label: {
-                Image(systemName: controller.isCurrentRangeSaved ? "star.fill" : "star")
-                    .foregroundStyle(controller.isCurrentRangeSaved ? .yellow : .secondary)
+                Image(systemName: "doc.badge.arrow.up")
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .disabled(controller.rangeInput.trimmingCharacters(in: .whitespaces).isEmpty)
-            .help(controller.isCurrentRangeSaved ? "Remove from saved" : "Save range")
-            .accessibilityLabel(controller.isCurrentRangeSaved ? "Remove from saved" : "Save range")
+            .help("Import targets from .txt or .csv")
+            .accessibilityLabel("Import targets")
+            .disabled(controller.isScanning)
 
             Menu {
                 let interfaces = NetworkInterface.scannableInterfaces()
@@ -441,6 +466,61 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Imported targets chip
+
+    @ViewBuilder
+    private func importedChip(_ imported: ScanController.ImportedTargets) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc.text")
+                .foregroundStyle(.tint)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(imported.url.lastPathComponent)
+                    .font(.callout)
+                    .lineLimit(1)
+                Text("\(imported.targets.count) target\(imported.targets.count == 1 ? "" : "s")\(imported.invalidLineCount > 0 ? " · \(imported.invalidLineCount) skipped" : "")")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Button {
+                controller.clearImportedFile()
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .help("Clear imported list")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color.accentColor.opacity(0.10))
+        )
+        .frame(maxWidth: 380, alignment: .leading)
+    }
+
+    private func openTargetFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.plainText, .commaSeparatedText, .text]
+        panel.message = "Select a .txt or .csv file containing IPs, CIDRs, or ranges (one per line; commas allowed)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let summary = try controller.loadImportedFile(url: url)
+            if summary.invalidLineCount > 0 {
+                importAlert = ImportAlert(
+                    title: "Imported with skipped lines",
+                    message: "\(summary.targetCount) targets parsed. \(summary.invalidLineCount) line\(summary.invalidLineCount == 1 ? "" : "s") could not be parsed and were skipped."
+                )
+            }
+        } catch {
+            importAlert = ImportAlert(
+                title: "Could not import",
+                message: error.localizedDescription
+            )
+        }
     }
 
     // MARK: - Content

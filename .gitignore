@@ -28,3 +28,6 @@ fastlane/test_output
 # Internal scaffolding — not part of the public source release
 iPScanner-spec.md
 landing/
+
+# Stray downloads / scratch images at the repo root
+/iPScanner-*.png
