@@ -96,7 +96,7 @@ Selecting a single host opens the right-side panel automatically. The panel is r
 
 - Header — device-type icon, IP, vendor, classification
 - Inline label editor with `#tag` syntax (searchable, MAC-anchored, persisted)
-- Full info: hostname, MAC, anchor, open ports (with service names), service title, RTT
+- Full info: hostname, MAC, anchor, open ports (with service names), service title, RTT, TTL, NetBIOS name & workgroup (Standard / Deep)
 - mDNS services list
 - Live ping monitor — sparkline + avg / min / max / loss stats (1s interval, 60-sample buffer)
 - Action grid grouped into Connect / Tools / Copy
@@ -117,11 +117,24 @@ Selecting a single host opens the right-side panel automatically. The panel is r
 </details>
 
 <details>
+<summary><strong>v1.2 additions</strong> — file import, CLI binary, NetBIOS, subnet calculator, update check, TTL, new export formats</summary>
+
+- **File import** — feed a `.txt` / `.csv` of IPs, CIDRs, or ranges instead of typing into the range field; invalid lines reported, duplicates deduped
+- **`ipscanner` CLI** — headless binary inside the app bundle for cron / launchd / scripts (see [Command-line interface](#command-line-interface-ipscanner))
+- **NetBIOS name fetcher** — Standard / Deep profiles pull Windows computer name + workgroup via UDP 137 when DNS is stale
+- **Subnet calculator popover** — `function` icon in the toolbar; `/N` → network, broadcast, host range, count, dotted mask, wildcard
+- **In-app update check** — auto-checks GitHub Releases once per 24 h, also available under `Help → Check for Updates…`
+- **TTL column** — parsed from `/sbin/ping`, optional column with an OS hint tooltip
+- **IP:Port export** and **Text Report export** — flat `ip:port` lines for piping into Nmap / firewalls, and a padded human-readable report for tickets
+
+</details>
+
+<details>
 <summary><strong>Persistence & I/O</strong></summary>
 
 - **Saved ranges** with friendly names (`Home`, `Office VLAN`) — sidebar with rename support
 - **Snapshot save/load** — `.ipscan.json`, ⌘O / ⌘⌥S
-- **Export** as CSV / JSON / clipboard
+- **Export** as CSV / JSON / **IP:Port list** / **Text Report** / clipboard
 - Per-host labels persisted in `UserDefaults`
 
 </details>
@@ -188,7 +201,7 @@ The IEEE OUI databases (`oui.txt`, `oui28.txt`, `oui36.txt`) are bundled in the 
 xcodebuild test -scheme iPScanner -destination 'platform=macOS'
 ```
 
-85+ unit tests cover the parsers (CIDR/range, ports), OUI 3-tier vendor lookup, CSV escaping, snapshot encode/decode, snapshot diff, device classifier, and saved-range model.
+140+ unit tests cover the parsers (CIDR/range, ports, target file), OUI 3-tier vendor lookup, NetBIOS wire-format build & response parsing, subnet calculator, CSV / IP:Port / text-report escaping, snapshot encode/decode, snapshot diff, device classifier, saved-range model, CLI argument parser, and update-version comparison.
 
 </details>
 
@@ -228,23 +241,28 @@ xcodebuild test -scheme iPScanner -destination 'platform=macOS'
 
 </details>
 
-### v1.2.0 — Operations focus
+<details>
+<summary><strong>v1.2.0 — Operations focus — completed</strong></summary>
 
-Aimed at moving iPScanner from a desktop tool to a usable operations tool.
+Moved iPScanner from a desktop tool to a usable operations tool.
 
-- [ ] **File import** — read targets from `.txt` / `.csv` (IP, hostname, CIDR, range), dedupe, surface invalid lines
-- [ ] **TTL column** — parsed from `/sbin/ping` output, optional column, included in CSV/JSON export
-- [ ] **IP:Port list export** — flat `ip:port` lines for piping into Nmap, firewall rules, scripts
-- [ ] **TXT report export** — human-readable summary suitable for tickets and email
-- [ ] **Scan engine extraction** — split a UI-independent `ScanEngine` out of `ScanController`; reused by both the app and the CLI
-- [ ] **`ipscanner` CLI** — headless scan with `--input`, `--ports`, `--profile`, `--format json|csv|txt|ip-port`, `--output`, exit codes for automation
+- [x] **File import** — read targets from `.txt` / `.csv` (IP, CIDR, range), dedupe, report invalid lines
+- [x] **TTL column** — parsed from `/sbin/ping` output, optional column, included in CSV / JSON export, OS hint tooltip
+- [x] **IP:Port list export** — flat `ip:port` lines for piping into Nmap, firewall rules, scripts
+- [x] **TXT report export** — human-readable summary suitable for tickets and email
+- [x] **`ipscanner` CLI** — headless binary inside the app bundle. Flags: `--input`, `--ports`, `--profile`, `--fetch-banners`, `--format json|csv|txt|ip-port`, `--output`, `--quiet`, `--help`. Exit codes for automation. Single-IP scans (`ipscanner 127.0.0.1`) supported.
 
-### v1.2.1 — Enterprise enrichment
+</details>
+
+<details>
+<summary><strong>v1.2.1 — Enterprise enrichment — partially shipped</strong></summary>
 
 - [x] **NetBIOS name fetcher** — UDP 137 query for Windows host name / workgroup when DNS is stale
-- [x] **Subnet calculator popover** — `/N` to network/broadcast/host-count, useful inline tool
+- [x] **Subnet calculator popover** — `/N` to network / broadcast / host-count, useful inline tool
 - [x] **In-app update check** — periodic GitHub Releases API check, alert with View Release / Skip / Later, manual `Help → Check for Updates…`
 - [ ] **Notarized release** — Apple Developer ID signature, removes the Gatekeeper friction documented in [Installation](#installation)
+
+</details>
 
 ### v1.3 — Persistent operations
 
