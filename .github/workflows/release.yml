@@ -57,7 +57,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM=""
 
-      - name: Archive Release
+      - name: Archive Release (app)
         run: |
           xcodebuild \
             -scheme iPScanner \
@@ -68,6 +68,27 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="" \
             archive
+
+      - name: Build Release (CLI)
+        run: |
+          xcodebuild \
+            -scheme ipscanner \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            SYMROOT=$(pwd)/build/cli-products \
+            build
+
+      - name: Bundle CLI inside iPScanner.app
+        run: |
+          APP=build/iPScanner.xcarchive/Products/Applications/iPScanner.app
+          CLI=$(find build/cli-products -name 'ipscanner' -type f | head -1)
+          test -n "$CLI" && test -x "$CLI"
+          cp "$CLI" "$APP/Contents/MacOS/ipscanner"
+          # Re-sign the app after modifying its bundle (ad-hoc).
+          codesign --force --sign - --deep --timestamp=none "$APP"
 
       - name: Package .dmg
         run: |
