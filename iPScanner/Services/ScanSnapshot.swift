@@ -15,8 +15,34 @@ struct ScanSnapshot: Codable {
         let mac: String?
         let vendor: String?
         let rttMs: Double?
+        let ttl: Int?
         let openPorts: [Int]
         let serviceTitle: String?
+
+        // Custom decoder so older `.ipscan.json` files (no `ttl` field) still load.
+        init(ip: String, hostname: String?, mac: String?, vendor: String?,
+             rttMs: Double?, ttl: Int?, openPorts: [Int], serviceTitle: String?) {
+            self.ip = ip
+            self.hostname = hostname
+            self.mac = mac
+            self.vendor = vendor
+            self.rttMs = rttMs
+            self.ttl = ttl
+            self.openPorts = openPorts
+            self.serviceTitle = serviceTitle
+        }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            self.ip = try c.decode(String.self, forKey: .ip)
+            self.hostname = try c.decodeIfPresent(String.self, forKey: .hostname)
+            self.mac = try c.decodeIfPresent(String.self, forKey: .mac)
+            self.vendor = try c.decodeIfPresent(String.self, forKey: .vendor)
+            self.rttMs = try c.decodeIfPresent(Double.self, forKey: .rttMs)
+            self.ttl = try c.decodeIfPresent(Int.self, forKey: .ttl)
+            self.openPorts = try c.decodeIfPresent([Int].self, forKey: .openPorts) ?? []
+            self.serviceTitle = try c.decodeIfPresent(String.self, forKey: .serviceTitle)
+        }
     }
 }
 

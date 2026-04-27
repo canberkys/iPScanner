@@ -406,6 +406,7 @@ final class ScanController {
                 mac: h.mac,
                 vendor: h.vendor,
                 rttMs: h.rttMs,
+                ttl: h.ttl,
                 openPorts: h.openPorts,
                 serviceTitle: h.serviceTitle
             )
@@ -465,6 +466,7 @@ final class ScanController {
                 mac: rec.mac,
                 vendor: rec.vendor,
                 rttMs: rec.rttMs,
+                ttl: rec.ttl,
                 openPorts: rec.openPorts,
                 serviceTitle: rec.serviceTitle,
                 status: .alive
@@ -500,12 +502,13 @@ final class ScanController {
             hostByIp[ip] = hosts[idx]
         }
 
-        let rtt = await NetworkScanner.discover(ip)
+        let result = await NetworkScanner.discover(ip)
         guard let idx = hosts.firstIndex(where: { $0.id == id }) else { return }
 
-        if rtt == nil {
+        guard let result = result else {
             hosts[idx].status = .dead
             hosts[idx].rttMs = nil
+            hosts[idx].ttl = nil
             hostByIp[ip] = hosts[idx]
             return
         }
@@ -518,7 +521,8 @@ final class ScanController {
 
         guard let idx2 = hosts.firstIndex(where: { $0.id == id }) else { return }
         hosts[idx2].status = .alive
-        hosts[idx2].rttMs = rtt
+        hosts[idx2].rttMs = result.rttMs
+        hosts[idx2].ttl = result.ttl
         if let h = hostname { hosts[idx2].hostname = h }
         if let m = mac { hosts[idx2].mac = m }
         if let v = vendor { hosts[idx2].vendor = v }
@@ -563,6 +567,7 @@ final class ScanController {
                 if let v = h.mac { merged.mac = v }
                 if let v = h.vendor { merged.vendor = v }
                 if let v = h.rttMs { merged.rttMs = v }
+                if let v = h.ttl { merged.ttl = v }
                 if let v = h.serviceTitle { merged.serviceTitle = v }
                 merged.openPorts = h.openPorts.isEmpty ? merged.openPorts : h.openPorts
                 merged.status = h.status

@@ -16,7 +16,7 @@ final class SnapshotDiffTests: XCTestCase {
     private func rec(_ ip: String, mac: String? = nil, hostname: String? = nil,
                      vendor: String? = nil, ports: [Int] = []) -> ScanSnapshot.HostRecord {
         .init(ip: ip, hostname: hostname, mac: mac, vendor: vendor, rttMs: nil,
-              openPorts: ports, serviceTitle: nil)
+              ttl: nil, openPorts: ports, serviceTitle: nil)
     }
 
     private func host(_ ip: String, mac: String? = nil, hostname: String? = nil,

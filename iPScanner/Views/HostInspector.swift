@@ -149,6 +149,9 @@ struct HostInspector: View {
             if let rtt = host.rttMs {
                 infoRow("RTT (initial)", String(format: "%.1f ms", rtt), monospaced: true)
             }
+            if let ttl = host.ttl {
+                infoRow("TTL", String(ttl), monospaced: true)
+            }
         }
     }
 

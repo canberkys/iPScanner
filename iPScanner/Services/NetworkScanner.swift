@@ -4,6 +4,12 @@ protocol NetworkScanning: Sendable {
     func scan(_ range: ScanRange) -> AsyncStream<ScanEvent>
 }
 
+struct DiscoverResult: Sendable, Hashable {
+    let rttMs: Double
+    /// Only populated for ICMP responses. TCP fallback probes don't expose a useful TTL.
+    let ttl: Int?
+}
+
 struct NetworkScanner: NetworkScanning {
     static let pingConcurrency = 32
     static let enrichConcurrency = 16
@@ -47,22 +53,22 @@ struct NetworkScanner: NetworkScanning {
 
         // --- Phase 1: discover (ping → TCP fallback) with bounded concurrency ---
         // Always yield dead hosts so the UI can filter on demand without re-scanning.
-        var alive: [(ip: String, rtt: Double)] = []
+        var alive: [(ip: String, rtt: Double, ttl: Int?)] = []
         var scanned = 0
 
-        await withTaskGroup(of: (String, Double?).self) { group in
+        await withTaskGroup(of: (String, DiscoverResult?).self) { group in
             var iter = addresses.makeIterator()
             for _ in 0..<min(pingConcurrency, addresses.count) {
                 guard let ip = iter.next() else { break }
                 group.addTask { (ip, await Self.discover(ip, useTCPFallback: useTCPFallback)) }
             }
 
-            while let (ip, rtt) = await group.next() {
+            while let (ip, result) = await group.next() {
                 scanned += 1
                 continuation.yield(.progress(scanned: scanned, total: total))
-                if let rtt = rtt {
-                    alive.append((ip, rtt))
-                    continuation.yield(.host(Host(ip: ip, rttMs: rtt, status: .alive)))
+                if let result = result {
+                    alive.append((ip, result.rttMs, result.ttl))
+                    continuation.yield(.host(Host(ip: ip, rttMs: result.rttMs, ttl: result.ttl, status: .alive)))
                 } else {
                     continuation.yield(.host(Host(ip: ip, status: .dead)))
                 }
@@ -92,7 +98,7 @@ struct NetworkScanner: NetworkScanning {
         await withTaskGroup(of: Host.self) { group in
             var iter = alive.makeIterator()
 
-            func enqueue(_ entry: (ip: String, rtt: Double)) {
+            func enqueue(_ entry: (ip: String, rtt: Double, ttl: Int?)) {
                 let mac = arpTable[entry.ip]
                 let vendor = mac.flatMap { oui.vendor(forMAC: $0) }
                 group.addTask {
@@ -103,6 +109,7 @@ struct NetworkScanner: NetworkScanning {
                         mac: mac,
                         vendor: vendor,
                         rttMs: entry.rtt,
+                        ttl: entry.ttl,
                         status: .alive
                     )
                 }
@@ -129,15 +136,15 @@ struct NetworkScanner: NetworkScanning {
 
     // MARK: - discover (ping with TCP fallback)
 
-    /// Returns approx RTT in ms if host responds to ICMP or any TCP fallback port.
-    static func discover(_ ip: String, useTCPFallback: Bool = true) async -> Double? {
-        if let rtt = await ping(ip) { return rtt }
+    /// Returns RTT and (when ICMP succeeded) TTL if the host responded.
+    static func discover(_ ip: String, useTCPFallback: Bool = true) async -> DiscoverResult? {
+        if let pinged = await ping(ip) { return pinged }
         return useTCPFallback ? await tcpFallback(ip) : nil
     }
 
     /// ICMP ping via /sbin/ping. nil if host did not reply.
-    static func ping(_ ip: String) async -> Double? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Double?, Never>) in
+    static func ping(_ ip: String) async -> DiscoverResult? {
+        await withCheckedContinuation { (continuation: CheckedContinuation<DiscoverResult?, Never>) in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/sbin/ping")
@@ -158,22 +165,24 @@ struct NetworkScanner: NetworkScanning {
 
                 guard process.terminationStatus == 0,
                       let output = String(data: data, encoding: .utf8),
-                      let match = output.firstMatch(of: #/time=([0-9.]+)\s*ms/#),
-                      let rtt = Double(match.1) else {
+                      let timeMatch = output.firstMatch(of: #/time=([0-9.]+)\s*ms/#),
+                      let rtt = Double(timeMatch.1) else {
                     continuation.resume(returning: nil)
                     return
                 }
-                continuation.resume(returning: rtt)
+                let ttl = output.firstMatch(of: #/ttl=([0-9]+)/#).flatMap { Int($0.1) }
+                continuation.resume(returning: DiscoverResult(rttMs: rtt, ttl: ttl))
             }
         }
     }
 
     /// Concurrent TCP probe across fallback ports. Returns probe duration in ms if any port handshakes.
-    static func tcpFallback(_ ip: String) async -> Double? {
+    static func tcpFallback(_ ip: String) async -> DiscoverResult? {
         let start = Date()
         let openPorts = await PortScanner.probe(ip, ports: tcpFallbackPorts, timeoutMs: tcpFallbackTimeoutMs)
         guard !openPorts.isEmpty else { return nil }
         let elapsedMs = max(0, Date().timeIntervalSince(start) * 1000)
-        return elapsedMs.isFinite ? elapsedMs : nil
+        guard elapsedMs.isFinite else { return nil }
+        return DiscoverResult(rttMs: elapsedMs, ttl: nil)
     }
 }

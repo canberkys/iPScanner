@@ -15,6 +15,7 @@ final class SnapshotTests: XCTestCase {
                     mac: "AA:BB:CC:DD:EE:FF",
                     vendor: "Test Vendor",
                     rttMs: 1.5,
+                    ttl: 64,
                     openPorts: [80, 443],
                     serviceTitle: "Login"
                 ),
@@ -24,6 +25,7 @@ final class SnapshotTests: XCTestCase {
                     mac: nil,
                     vendor: nil,
                     rttMs: nil,
+                    ttl: nil,
                     openPorts: [],
                     serviceTitle: nil
                 )
@@ -68,6 +70,35 @@ final class SnapshotTests: XCTestCase {
     func testDecodeRejectsGarbage() {
         let garbage = Data("not json".utf8)
         XCTAssertThrowsError(try SnapshotIO.decode(garbage))
+    }
+
+    /// Older `.ipscan.json` files (pre-v1.2) were saved without the `ttl` field.
+    /// Make sure they still load — TTL should default to nil.
+    func testDecodesLegacySnapshotWithoutTTL() throws {
+        let legacy = """
+        {
+          "version" : 1,
+          "createdAt" : "2026-04-26T10:00:00Z",
+          "rangeInput" : "10.0.0.0/24",
+          "hosts" : [
+            {
+              "ip" : "10.0.0.1",
+              "hostname" : "router",
+              "mac" : "AA:BB:CC:DD:EE:FF",
+              "vendor" : "Cisco",
+              "rttMs" : 1.2,
+              "openPorts" : [80, 443],
+              "serviceTitle" : null
+            }
+          ],
+          "labels" : {}
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try SnapshotIO.decode(legacy)
+        XCTAssertEqual(decoded.hosts.count, 1)
+        XCTAssertEqual(decoded.hosts[0].ip, "10.0.0.1")
+        XCTAssertNil(decoded.hosts[0].ttl, "Missing TTL field should decode to nil")
     }
 
     func testDefaultFileNamePattern() {
