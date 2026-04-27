@@ -2,6 +2,7 @@
   <img src="assets/icon-with-text.png" width="220" alt="iPScanner">
   <h3><em>See every device on your network.</em></h3>
   <p>
+    <a href="https://canberk.me/ipscanner/"><img src="https://img.shields.io/badge/website-canberk.me%2Fipscanner-orange" alt="Website"></a>
     <a href="https://github.com/canberkys/iPScanner/releases/latest"><img src="https://img.shields.io/github/v/release/canberkys/iPScanner?label=download&color=blue" alt="Latest release"></a>
     <a href="LICENSE"><img src="https://img.shields.io/github/license/canberkys/iPScanner?color=green" alt="License"></a>
     <img src="https://img.shields.io/badge/macOS-14.4%2B-black?logo=apple" alt="macOS 14.4+">
