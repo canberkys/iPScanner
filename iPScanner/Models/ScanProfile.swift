@@ -33,4 +33,10 @@ enum ScanProfile: String, CaseIterable, Identifiable, Sendable {
     var autoPortScan: Bool {
         self == .deep
     }
+
+    /// Standard / Deep run an extra UDP-137 query to pull NetBIOS computer name and workgroup.
+    /// Quick skips it to keep ICMP-only discovery fast.
+    var includeNetBIOS: Bool {
+        self != .quick
+    }
 }

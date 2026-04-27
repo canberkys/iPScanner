@@ -29,11 +29,13 @@ struct NetworkScanner: NetworkScanning {
 
     func scan(addresses: [String]) -> AsyncStream<ScanEvent> {
         let useTCPFallback = profile.useTCPFallback
+        let includeNetBIOS = profile.includeNetBIOS
         return AsyncStream { continuation in
             let task = Task.detached(priority: .userInitiated) {
                 await Self.run(
                     addresses: addresses,
                     useTCPFallback: useTCPFallback,
+                    includeNetBIOS: includeNetBIOS,
                     continuation: continuation
                 )
             }
@@ -46,6 +48,7 @@ struct NetworkScanner: NetworkScanning {
     private static func run(
         addresses: [String],
         useTCPFallback: Bool,
+        includeNetBIOS: Bool = false,
         continuation: AsyncStream<ScanEvent>.Continuation
     ) async {
         let total = addresses.count
@@ -102,14 +105,20 @@ struct NetworkScanner: NetworkScanning {
                 let mac = arpTable[entry.ip]
                 let vendor = mac.flatMap { oui.vendor(forMAC: $0) }
                 group.addTask {
-                    let hostname = await DNSResolver.reverseLookup(entry.ip)
+                    async let hostname = DNSResolver.reverseLookup(entry.ip)
+                    async let netbios: NetBIOSResolver.Result? =
+                        includeNetBIOS ? NetBIOSResolver.resolve(entry.ip) : nil
+                    let resolvedHost = await hostname
+                    let nb = await netbios
                     return Host(
                         ip: entry.ip,
-                        hostname: hostname,
+                        hostname: resolvedHost,
                         mac: mac,
                         vendor: vendor,
                         rttMs: entry.rtt,
                         ttl: entry.ttl,
+                        netbiosName: nb?.computerName,
+                        workgroup: nb?.workgroup,
                         status: .alive
                     )
                 }
