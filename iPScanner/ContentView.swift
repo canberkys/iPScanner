@@ -13,6 +13,8 @@ struct ContentView: View {
     @State private var showingWarnings = false
     @State private var showingDiff = false
     @State private var importAlert: ImportAlert?
+    @State private var showingSubnetCalc = false
+    @State private var subnetCalcInput = ""
     @FocusState private var searchFieldFocused: Bool
 
     private struct ImportAlert: Identifiable {
@@ -268,6 +270,22 @@ struct ContentView: View {
             .accessibilityLabel("Import targets")
             .disabled(controller.isScanning)
 
+            Button {
+                if subnetCalcInput.isEmpty {
+                    subnetCalcInput = controller.rangeInput
+                }
+                showingSubnetCalc.toggle()
+            } label: {
+                Image(systemName: "function")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Subnet calculator")
+            .accessibilityLabel("Subnet calculator")
+            .popover(isPresented: $showingSubnetCalc, arrowEdge: .bottom) {
+                subnetCalcPopover
+            }
+
             Menu {
                 let interfaces = NetworkInterface.scannableInterfaces()
                 if interfaces.isEmpty {
@@ -472,6 +490,72 @@ struct ContentView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Subnet calculator popover
+
+    @ViewBuilder
+    private var subnetCalcPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Subnet calculator")
+                .font(.headline)
+
+            TextField("CIDR (e.g. 10.0.0.0/24)", text: $subnetCalcInput)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 280)
+                .onSubmit { /* recompute is automatic */ }
+
+            if let summary = SubnetCalculator.summarize(subnetCalcInput) {
+                VStack(alignment: .leading, spacing: 4) {
+                    subnetRow("Network",   summary.network)
+                    subnetRow("Broadcast", summary.broadcast)
+                    if let first = summary.firstHost, let last = summary.lastHost {
+                        subnetRow("Hosts", "\(first) → \(last)")
+                    } else {
+                        subnetRow("Hosts", "—")
+                    }
+                    subnetRow("Count",     "\(summary.hostCount) usable")
+                    subnetRow("Netmask",   summary.netmask)
+                    subnetRow("Wildcard",  summary.wildcard)
+                }
+                .font(.callout)
+                .monospacedDigit()
+
+                HStack {
+                    Spacer()
+                    Button("Use as scan range") {
+                        controller.clearImportedFile()
+                        controller.rangeInput = summary.cidr
+                        showingSubnetCalc = false
+                    }
+                    .controlSize(.small)
+                    .disabled(controller.isScanning)
+                }
+            } else if !subnetCalcInput.isEmpty {
+                Text("Invalid CIDR. Try `10.0.0.0/24`.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else {
+                Text("Enter an IPv4 CIDR to see network, broadcast, and host range.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .frame(width: 320)
+    }
+
+    @ViewBuilder
+    private func subnetRow(_ key: String, _ value: String) -> some View {
+        HStack(spacing: 8) {
+            Text(key)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 80, alignment: .leading)
+            Text(value)
+                .textSelection(.enabled)
+            Spacer(minLength: 0)
+        }
     }
 
     // MARK: - Imported targets chip
