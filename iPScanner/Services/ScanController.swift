@@ -407,6 +407,8 @@ final class ScanController {
                 vendor: h.vendor,
                 rttMs: h.rttMs,
                 ttl: h.ttl,
+                netbiosName: h.netbiosName,
+                workgroup: h.workgroup,
                 openPorts: h.openPorts,
                 serviceTitle: h.serviceTitle
             )
@@ -467,6 +469,8 @@ final class ScanController {
                 vendor: rec.vendor,
                 rttMs: rec.rttMs,
                 ttl: rec.ttl,
+                netbiosName: rec.netbiosName,
+                workgroup: rec.workgroup,
                 openPorts: rec.openPorts,
                 serviceTitle: rec.serviceTitle,
                 status: .alive
@@ -515,7 +519,11 @@ final class ScanController {
 
         try? await Task.sleep(for: .milliseconds(200))
         let arpTable = await ARPLookup.table()
-        let hostname = await DNSResolver.reverseLookup(ip)
+        async let hostnameTask = DNSResolver.reverseLookup(ip)
+        async let netbiosTask: NetBIOSResolver.Result? =
+            profile.includeNetBIOS ? NetBIOSResolver.resolve(ip) : nil
+        let hostname = await hostnameTask
+        let netbios = await netbiosTask
         let mac = arpTable[ip]
         let vendor = mac.flatMap { OUILookup.shared.vendor(forMAC: $0) }
 
@@ -526,6 +534,8 @@ final class ScanController {
         if let h = hostname { hosts[idx2].hostname = h }
         if let m = mac { hosts[idx2].mac = m }
         if let v = vendor { hosts[idx2].vendor = v }
+        if let n = netbios?.computerName { hosts[idx2].netbiosName = n }
+        if let w = netbios?.workgroup { hosts[idx2].workgroup = w }
         hostByIp[ip] = hosts[idx2]
     }
 
@@ -568,6 +578,8 @@ final class ScanController {
                 if let v = h.vendor { merged.vendor = v }
                 if let v = h.rttMs { merged.rttMs = v }
                 if let v = h.ttl { merged.ttl = v }
+                if let v = h.netbiosName { merged.netbiosName = v }
+                if let v = h.workgroup { merged.workgroup = v }
                 if let v = h.serviceTitle { merged.serviceTitle = v }
                 merged.openPorts = h.openPorts.isEmpty ? merged.openPorts : h.openPorts
                 merged.status = h.status

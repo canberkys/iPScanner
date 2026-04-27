@@ -136,6 +136,12 @@ struct HostInspector: View {
     private func infoSection(host: Host) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             infoRow("Hostname", host.hostname)
+            if let nb = host.netbiosName {
+                infoRow("NetBIOS", nb)
+            }
+            if let wg = host.workgroup {
+                infoRow("Workgroup", wg)
+            }
             infoRow("MAC", host.mac?.uppercased(), monospaced: true)
             if let anchor {
                 infoRow("Anchor", anchor, monospaced: true, secondary: true)
