@@ -1,0 +1,115 @@
+name: iPScanner
+
+options:
+  bundleIdPrefix: com.canberkkilicarslan
+  deploymentTarget:
+    macOS: "14.4"
+
+  createIntermediateGroups: true
+  developmentLanguage: en
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: 14.4
+    SWIFT_VERSION: "5.9"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    ARCHS: $(ARCHS_STANDARD)
+    ONLY_ACTIVE_ARCH: NO
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    PRODUCT_BUNDLE_IDENTIFIER: com.canberkkilicarslan.iPScanner
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: NO
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+targets:
+  iPScanner:
+    type: application
+    platform: macOS
+    sources:
+      - path: iPScanner
+        excludes:
+          - "Info.plist"
+          - "iPScanner.entitlements"
+    info:
+      path: iPScanner/Info.plist
+      properties:
+        CFBundleName: iPScanner
+        CFBundleDisplayName: iPScanner
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundlePackageType: APPL
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations:
+          - en
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: "© 2026 Canberk Kılıçarslan. MIT License."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSPrincipalClass: NSApplication
+        NSMainStoryboardFile: ""
+        NSLocalNetworkUsageDescription: iPScanner discovers devices and services on your local network using ICMP ping, ARP, and Bonjour/mDNS.
+        NSBonjourServices:
+          - _airplay._tcp
+          - _raop._tcp
+          - _googlecast._tcp
+          - _companion-link._tcp
+          - _homekit._tcp
+          - _hap._tcp
+          - _smb._tcp
+          - _afpovertcp._tcp
+          - _nfs._tcp
+          - _ssh._tcp
+          - _rfb._tcp
+          - _workstation._tcp
+          - _http._tcp
+          - _https._tcp
+          - _ipp._tcp
+          - _printer._tcp
+          - _pdl-datastream._tcp
+          - _device-info._tcp
+    entitlements:
+      path: iPScanner/iPScanner.entitlements
+      properties: {}
+
+  iPScannerTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: iPScannerTests
+    dependencies:
+      - target: iPScanner
+    settings:
+      base:
+        BUNDLE_LOADER: $(TEST_HOST)
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/iPScanner.app/Contents/MacOS/iPScanner
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: 14.4
+        PRODUCT_BUNDLE_IDENTIFIER: com.canberkkilicarslan.iPScannerTests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  iPScanner:
+    build:
+      targets:
+        iPScanner: all
+        iPScannerTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - iPScannerTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

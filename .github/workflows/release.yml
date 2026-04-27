@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install tools
+        run: brew install xcodegen create-dmg
+
+      - name: Refresh OUI databases
+        run: |
+          curl -fsSL --max-time 60 https://standards-oui.ieee.org/oui/oui.txt \
+            -o iPScanner/Resources/oui.txt
+          curl -fsSL --max-time 60 https://standards-oui.ieee.org/oui28/mam.txt \
+            -o iPScanner/Resources/oui28.txt
+          curl -fsSL --max-time 60 https://standards-oui.ieee.org/oui36/oui36.txt \
+            -o iPScanner/Resources/oui36.txt
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -scheme iPScanner \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=""
+
+      - name: Archive Release
+        run: |
+          xcodebuild \
+            -scheme iPScanner \
+            -configuration Release \
+            -archivePath build/iPScanner.xcarchive \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="" \
+            archive
+
+      - name: Package .dmg
+        run: |
+          mkdir -p build/dmg
+          cp -R build/iPScanner.xcarchive/Products/Applications/iPScanner.app build/dmg/
+          create-dmg \
+            --volname "iPScanner ${{ steps.ver.outputs.version }}" \
+            --window-size 540 380 \
+            --icon-size 96 \
+            --icon "iPScanner.app" 140 180 \
+            --app-drop-link 380 180 \
+            "build/iPScanner-${{ steps.ver.outputs.version }}.dmg" \
+            build/dmg/ || true
+          test -f "build/iPScanner-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: iPScanner ${{ steps.ver.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: build/iPScanner-${{ steps.ver.outputs.version }}.dmg
+          body: |
+            ## iPScanner ${{ steps.ver.outputs.version }}
+
+            Download the universal `.dmg` (macOS 14+) and drag `iPScanner.app` into `Applications`.
+
+            ### First launch (Gatekeeper)
+            The build is ad-hoc signed (no Apple Developer ID), so macOS will refuse it on first run. Either:
+            ```bash
+            xattr -d com.apple.quarantine /Applications/iPScanner.app
+            ```
+            …or right-click the app in Finder → **Open** → **Open** (only required the first time).
+
+            ### Build
+            Native SwiftUI · macOS 14+ · Apple Silicon + Intel universal · ad-hoc signed · zero third-party dependencies.
+
+      - name: Upload artifact (manual runs)
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: actions/upload-artifact@v4
+        with:
+          name: iPScanner-${{ steps.ver.outputs.version }}
+          path: build/iPScanner-${{ steps.ver.outputs.version }}.dmg
