@@ -36,10 +36,10 @@ final class PingMonitor {
         task = Task { [weak self] in
             while !Task.isCancelled {
                 guard let ip = self?.trackedIP else { break }
-                let rtt = await NetworkScanner.ping(ip)
+                let result = await NetworkScanner.ping(ip)
                 if Task.isCancelled { break }
                 guard let self, self.trackedIP == ip else { break }
-                self.samples.append(rtt)
+                self.samples.append(result?.rttMs)
                 if self.samples.count > Self.bufferSize {
                     self.samples.removeFirst(self.samples.count - Self.bufferSize)
                 }

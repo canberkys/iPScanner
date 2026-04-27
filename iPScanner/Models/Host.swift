@@ -13,6 +13,7 @@ struct Host: Identifiable, Hashable {
     var mac: String?
     var vendor: String?
     var rttMs: Double?
+    var ttl: Int?
     var openPorts: [Int]
     var serviceTitle: String?
     var status: Status
@@ -24,6 +25,7 @@ struct Host: Identifiable, Hashable {
         mac: String? = nil,
         vendor: String? = nil,
         rttMs: Double? = nil,
+        ttl: Int? = nil,
         openPorts: [Int] = [],
         serviceTitle: String? = nil,
         status: Status = .scanning
@@ -34,6 +36,7 @@ struct Host: Identifiable, Hashable {
         self.mac = mac
         self.vendor = vendor
         self.rttMs = rttMs
+        self.ttl = ttl
         self.openPorts = openPorts
         self.serviceTitle = serviceTitle
         self.status = status

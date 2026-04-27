@@ -28,6 +28,7 @@ struct ContentView: View {
     @AppStorage("iPScanner.col.vendor") private var showColVendor = true
     @AppStorage("iPScanner.col.title") private var showColTitle = false
     @AppStorage("iPScanner.col.rtt") private var showColRTT = false
+    @AppStorage("iPScanner.col.ttl") private var showColTTL = false
     @AppStorage("iPScanner.col.ports") private var showColPorts = true
 
     @AppStorage("iPScanner.inspectorWidth") private var inspectorWidth: Double = 320
@@ -386,9 +387,13 @@ struct ContentView: View {
                 Menu {
                     Button("Save as CSV…") { saveCSV() }
                     Button("Save as JSON…") { saveJSON() }
+                    Button("Save as IP:Port List…") { saveIPPort() }
+                    Button("Save as Text Report…") { saveTextReport() }
                     Divider()
                     Button("Copy to Clipboard (CSV)") { copyCSV() }
                     Button("Copy to Clipboard (JSON)") { copyJSON() }
+                    Button("Copy to Clipboard (IP:Port)") { copyIPPort() }
+                    Button("Copy to Clipboard (Text Report)") { copyTextReport() }
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
@@ -443,17 +448,18 @@ struct ContentView: View {
                     Toggle("Vendor", isOn: $showColVendor)
                     Toggle("Title", isOn: $showColTitle)
                     Toggle("RTT", isOn: $showColRTT)
+                    Toggle("TTL", isOn: $showColTTL)
                     Toggle("Ports", isOn: $showColPorts)
                     Divider()
                     Button("Show All") {
                         showColLabel = true; showColHostname = true; showColMAC = true
                         showColVendor = true; showColTitle = true; showColRTT = true
-                        showColPorts = true
+                        showColTTL = true; showColPorts = true
                     }
                     Button("Reset to Default") {
                         showColLabel = true; showColHostname = true; showColMAC = false
                         showColVendor = true; showColTitle = false; showColRTT = false
-                        showColPorts = true
+                        showColTTL = false; showColPorts = true
                     }
                 } label: {
                     Image(systemName: "rectangle.split.3x1")
@@ -626,13 +632,14 @@ struct ContentView: View {
                     .width(min: 80, ideal: 130)
                 }
 
-                if showColRTT {
-                    TableColumn("RTT") { host in
-                        Text(host.rttMs.map { String(format: "%.1f", $0) } ?? "—")
+                if showColRTT || showColTTL {
+                    TableColumn(rttTtlHeader) { host in
+                        Text(rttTtlCell(host))
                             .monospaced()
                             .foregroundStyle(.secondary)
+                            .help(ttlHint(for: host.ttl))
                     }
-                    .width(min: 50, ideal: 60, max: 80)
+                    .width(min: 60, ideal: 90, max: 140)
                 }
 
                 if showColPorts {
@@ -908,6 +915,87 @@ struct ContentView: View {
         guard let data = try? ExportService.json(rows: currentRows()),
               let str = String(data: data, encoding: .utf8) else { return }
         HostActions.copy(str)
+    }
+
+    private func saveIPPort() {
+        let text = ExportService.ipPortList(rows: currentRows())
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = ExportService.defaultFileName(ext: "txt")
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? text.data(using: .utf8)?.write(to: url)
+        }
+    }
+
+    private func copyIPPort() {
+        HostActions.copy(ExportService.ipPortList(rows: currentRows()))
+    }
+
+    private func saveTextReport() {
+        let text = textReportString()
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = ExportService.defaultFileName(ext: "txt")
+        panel.canCreateDirectories = true
+        if panel.runModal() == .OK, let url = panel.url {
+            try? text.data(using: .utf8)?.write(to: url)
+        }
+    }
+
+    private func copyTextReport() {
+        HostActions.copy(textReportString())
+    }
+
+    private func textReportString() -> String {
+        let rangeLabel: String
+        if let imported = controller.importedTargets {
+            rangeLabel = "Imported list: \(imported.url.lastPathComponent) (\(imported.targets.count) targets)"
+        } else {
+            rangeLabel = controller.rangeInput
+        }
+        let scannedTotal: Int
+        switch controller.state {
+        case .scanning(_, let total): scannedTotal = total
+        case .done(_, let total): scannedTotal = total
+        case .idle: scannedTotal = controller.hosts.count
+        }
+        return ExportService.textReport(
+            rows: currentRows(),
+            rangeInput: rangeLabel,
+            scannedTotal: scannedTotal,
+            aliveCount: controller.aliveCount
+        )
+    }
+
+    private var rttTtlHeader: String {
+        switch (showColRTT, showColTTL) {
+        case (true, true): "RTT / TTL"
+        case (true, false): "RTT"
+        case (false, true): "TTL"
+        case (false, false): ""
+        }
+    }
+
+    private func rttTtlCell(_ host: Host) -> String {
+        var parts: [String] = []
+        if showColRTT {
+            parts.append(host.rttMs.map { String(format: "%.1f ms", $0) } ?? "—")
+        }
+        if showColTTL {
+            parts.append(host.ttl.map { "ttl \($0)" } ?? "—")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Rough heuristic translating an ICMP TTL into a probable origin OS.
+    /// Real values vary; this is a hint only.
+    private func ttlHint(for ttl: Int?) -> String {
+        guard let ttl else { return "" }
+        if ttl >= 250 { return "TTL \(ttl) — likely Cisco / network device" }
+        if ttl >= 120 { return "TTL \(ttl) — likely Windows" }
+        if ttl >= 60  { return "TTL \(ttl) — likely Linux / macOS / BSD" }
+        return "TTL \(ttl)"
     }
 
     // MARK: - Selection helpers
