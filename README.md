@@ -241,8 +241,9 @@ Aimed at moving iPScanner from a desktop tool to a usable operations tool.
 
 ### v1.2.1 — Enterprise enrichment
 
-- [ ] **NetBIOS name fetcher** — UDP 137 query for Windows host name / workgroup when DNS is stale
-- [ ] **Subnet calculator popover** — `/N` to network/broadcast/host-count, useful inline tool
+- [x] **NetBIOS name fetcher** — UDP 137 query for Windows host name / workgroup when DNS is stale
+- [x] **Subnet calculator popover** — `/N` to network/broadcast/host-count, useful inline tool
+- [x] **In-app update check** — periodic GitHub Releases API check, alert with View Release / Skip / Later, manual `Help → Check for Updates…`
 - [ ] **Notarized release** — Apple Developer ID signature, removes the Gatekeeper friction documented in [Installation](#installation)
 
 ### v1.3 — Persistent operations
