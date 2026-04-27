@@ -139,6 +139,33 @@ Selecting a single host opens the right-side panel automatically. The panel is r
 
 ---
 
+## Command-line interface (`ipscanner`)
+
+The same scanning engine is exposed as a headless `ipscanner` binary inside the app bundle, suitable for cron jobs, `launchd`, or piping into other tools.
+
+```bash
+# Discover hosts on a subnet, write JSON to a file
+/Applications/iPScanner.app/Contents/MacOS/ipscanner 10.0.0.0/24 \
+  --profile standard --format json --output scan.json
+
+# Scan a target list from CSV with port scan + banner fetch, emit ip:port lines
+/Applications/iPScanner.app/Contents/MacOS/ipscanner \
+  --input targets.csv --ports 22,80,443 --fetch-banners --format ip-port
+
+# Quick (ICMP-only) scan to stdout
+/Applications/iPScanner.app/Contents/MacOS/ipscanner 192.168.1.0/24 --profile quick --format txt
+```
+
+Run `--help` for the full flag list. Exit codes: `0` success, `1` argument / input error, `2` runtime / scan error.
+
+For convenience you can symlink it onto your `PATH`:
+
+```bash
+sudo ln -s /Applications/iPScanner.app/Contents/MacOS/ipscanner /usr/local/bin/ipscanner
+```
+
+---
+
 ## Build from source
 
 **Requirements**: macOS 14.4+, Xcode 15+, [xcodegen](https://github.com/yonki/xcodegen)

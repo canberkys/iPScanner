@@ -99,8 +99,33 @@ final class OUILookup: @unchecked Sendable {
     }
 
     private static func loadFile(_ name: String) -> String? {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "txt"),
-              let data = try? Data(contentsOf: url) else { return nil }
-        return String(data: data, encoding: .utf8)
+        for url in candidateURLs(for: name) {
+            if let data = try? Data(contentsOf: url) {
+                return String(data: data, encoding: .utf8)
+            }
+        }
+        return nil
+    }
+
+    /// Search paths the OUI files might live in. Ordered by likelihood.
+    /// Lets the same loader work from inside the app bundle and from the
+    /// `ipscanner` CLI binary that ships alongside it in `Contents/MacOS/`.
+    private static func candidateURLs(for name: String) -> [URL] {
+        var urls: [URL] = []
+        // 1. Standard app-bundle resource lookup (works for the GUI app).
+        if let url = Bundle.main.url(forResource: name, withExtension: "txt") {
+            urls.append(url)
+        }
+        let fileName = "\(name).txt"
+        // 2. Sibling of the executable: `Contents/MacOS/ipscanner` → `Contents/Resources/oui.txt`.
+        let exeDir = Bundle.main.bundleURL
+        let bundleResources = exeDir.deletingLastPathComponent().appendingPathComponent("Resources")
+        urls.append(bundleResources.appendingPathComponent(fileName))
+        // 3. Same directory as the binary (loose distribution).
+        urls.append(exeDir.appendingPathComponent(fileName))
+        // 4. Current working directory (developer convenience).
+        urls.append(URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            .appendingPathComponent(fileName))
+        return urls
     }
 }
