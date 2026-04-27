@@ -15,11 +15,16 @@
 
 Open-source macOS counterpart to Advanced IP Scanner. Built with native SwiftUI, zero third-party dependencies, universal binary (Apple Silicon + Intel).
 
-## Screenshot
+## Screenshots
 
 <div align="center">
-  <img src="docs/screenshots/01-empty.png" width="800" alt="iPScanner — start screen with auto-detected default subnet">
-  <p><em>Start screen — auto-detected default subnet, scan profile picker (Quick / Standard / Deep), saved ranges sidebar.</em></p>
+  <img src="docs/screenshots/01-results.png" width="800" alt="iPScanner — scan results with the host inspector open">
+  <p><em>Scan results — table with vendors, ports, and labels; the right-side inspector shows the selected host's full detail and a live ping monitor.</em></p>
+</div>
+
+<div align="center">
+  <img src="docs/screenshots/02-empty.png" width="800" alt="iPScanner — start screen with auto-detected default subnet">
+  <p><em>Start screen — auto-detected default subnet, scan-profile picker (Quick / Standard / Deep), interface picker, auto-rescan menu, and the saved-ranges sidebar.</em></p>
 </div>
 
 ---
