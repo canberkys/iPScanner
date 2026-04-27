@@ -201,11 +201,48 @@ xcodebuild test -scheme iPScanner -destination 'platform=macOS'
 
 </details>
 
-**Planned for v1.2+**
+### v1.2.0 — Operations focus
 
-- [ ] Menu-bar mode with new-device notifications
-- [ ] IPv6 support
-- [ ] Notarized release with Apple Developer ID
+Aimed at moving iPScanner from a desktop tool to a usable operations tool.
+
+- [ ] **File import** — read targets from `.txt` / `.csv` (IP, hostname, CIDR, range), dedupe, surface invalid lines
+- [ ] **TTL column** — parsed from `/sbin/ping` output, optional column, included in CSV/JSON export
+- [ ] **IP:Port list export** — flat `ip:port` lines for piping into Nmap, firewall rules, scripts
+- [ ] **TXT report export** — human-readable summary suitable for tickets and email
+- [ ] **Scan engine extraction** — split a UI-independent `ScanEngine` out of `ScanController`; reused by both the app and the CLI
+- [ ] **`ipscanner` CLI** — headless scan with `--input`, `--ports`, `--profile`, `--format json|csv|txt|ip-port`, `--output`, exit codes for automation
+
+### v1.2.1 — Enterprise enrichment
+
+- [ ] **NetBIOS name fetcher** — UDP 137 query for Windows host name / workgroup when DNS is stale
+- [ ] **Subnet calculator popover** — `/N` to network/broadcast/host-count, useful inline tool
+- [ ] **Notarized release** — Apple Developer ID signature, removes the Gatekeeper friction documented in [Installation](#installation)
+
+### v1.3 — Persistent operations
+
+- [ ] **launchd-backed scheduled scans** — true background scans even when the app is closed (in-memory auto-rescan stays as the foreground equivalent)
+- [ ] **History / time-series** — long-term per-host first-seen / last-seen / port-state tracking on top of the existing snapshot model
+
+<details>
+<summary><strong>Deferred (P2)</strong> — open to demand, not on the active list</summary>
+
+- Multi-ping at scan time with packet-loss percentage (live inspector already covers the diagnostic case; 3× scan time is rarely worth it)
+- Filtered-port detection (`open` / `closed` / `filtered` distinction; risk of mis-classification on TCP timeout)
+- XML export
+- Append-to-file export mode (snapshot diff is the cleaner historical model)
+
+</details>
+
+<details>
+<summary><strong>Out of scope</strong> — explicit non-goals</summary>
+
+- Public plugin API. Internal protocols (`TargetProvider`, `HostEnricher`, `ScanExporter`) keep the codebase clean without committing to a stable extension contract.
+- Random IP feeder (Angry IP Scanner-style). Doesn't match the operational use case and invites misuse.
+- HTTP proxy detection / arbitrary HTTP sender. Out of scope for a discovery tool; covered better by `curl`.
+- Menu-bar mode with new-device notifications. CLI + `launchd` is the more flexible path for the same goal.
+- IPv6 support. Niche for typical macOS LAN discovery; will reconsider on user demand.
+
+</details>
 
 ---
 
