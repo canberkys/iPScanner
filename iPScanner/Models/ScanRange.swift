@@ -16,7 +16,15 @@ struct ScanRange: Hashable {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         if let r = ScanRange(cidr: trimmed) { return r }
         if let r = ScanRange(range: trimmed) { return r }
+        if let r = ScanRange(singleIP: trimmed) { return r }
         return nil
+    }
+
+    init?(singleIP: String) {
+        guard let value = IPv4.uint32(from: singleIP) else { return nil }
+        self.lowerBound = value
+        self.upperBound = value
+        self.displayString = singleIP
     }
 
     /// Parses comma-separated input into multiple ranges.

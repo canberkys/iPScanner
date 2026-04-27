@@ -79,6 +79,27 @@ targets:
       path: iPScanner/iPScanner.entitlements
       properties: {}
 
+  ipscanner:
+    type: tool
+    platform: macOS
+    sources:
+      - path: cli
+      - path: iPScanner/Models
+      - path: iPScanner/Services
+        excludes:
+          - "HostActions.swift"
+          - "ScanController.swift"
+          - "PingMonitor.swift"
+          - "MDNSDiscovery.swift"
+    settings:
+      base:
+        PRODUCT_NAME: ipscanner
+        PRODUCT_BUNDLE_IDENTIFIER: com.canberkkilicarslan.ipscanner
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: 14.4
+        SKIP_INSTALL: NO
+        GENERATE_INFOPLIST_FILE: YES
+
   iPScannerTests:
     type: bundle.unit-test
     platform: macOS
