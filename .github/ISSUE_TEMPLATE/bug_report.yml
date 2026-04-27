@@ -1,0 +1,77 @@
+name: Bug report
+description: Something is broken, crashes, or behaves unexpectedly.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a report. Please fill in the fields below — the more concrete you are, the faster the fix.
+
+  - type: input
+    id: version
+    attributes:
+      label: iPScanner version
+      description: From the About panel (Apple menu → About iPScanner) or the `.dmg` filename.
+      placeholder: "1.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      description: System Settings → General → About → macOS.
+      placeholder: "Sequoia 15.4 / Tahoe 26.4"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: arch
+    attributes:
+      label: Mac architecture
+      options:
+        - Apple Silicon (M-series)
+        - Intel
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behavior. Include the scan range or action that triggered it if relevant.
+      placeholder: |
+        I scanned 10.0.0.0/24 with the Standard profile. After ~2 minutes the table froze and the inspector stopped updating.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: false
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Launch iPScanner
+        2. Enter `10.0.0.0/24`
+        3. Click Scan
+        4. ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Crash log / Console output (optional)
+      description: |
+        If the app crashed, paste the relevant section from `Console.app` or the crash report from `~/Library/Logs/DiagnosticReports/`.
+      render: shell
+    validations:
+      required: false

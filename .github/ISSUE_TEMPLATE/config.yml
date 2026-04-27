@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Author website
+    url: https://canberkki.com
+    about: General contact for the maintainer.

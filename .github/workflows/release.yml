@@ -95,17 +95,25 @@ jobs:
           body: |
             ## iPScanner ${{ steps.ver.outputs.version }}
 
-            Download the universal `.dmg` (macOS 14+) and drag `iPScanner.app` into `Applications`.
+            Download the universal `.dmg` (macOS 14.4+), open it, and drag `iPScanner.app` into `Applications`.
 
             ### First launch (Gatekeeper)
-            The build is ad-hoc signed (no Apple Developer ID), so macOS will refuse it on first run. Either:
+
+            The build is ad-hoc signed (no Apple Developer ID), so macOS Gatekeeper will refuse it on first run. Pick one workaround:
+
+            **Option A — single command** (recommended):
             ```bash
-            xattr -d com.apple.quarantine /Applications/iPScanner.app
+            xattr -cr /Applications/iPScanner.app
             ```
-            …or right-click the app in Finder → **Open** → **Open** (only required the first time).
+            Strips every quarantine attribute the system added during download. Run once.
+
+            **Option B — UI route**:
+            1. Right-click `iPScanner.app` in Finder → **Open** → **Open**.
+            2. If macOS Sequoia (15) or Tahoe (26+) still blocks it, open **System Settings → Privacy & Security**, scroll to *Security*, and click **Open Anyway**.
 
             ### Build
-            Native SwiftUI · macOS 14+ · Apple Silicon + Intel universal · ad-hoc signed · zero third-party dependencies.
+
+            Native SwiftUI · macOS 14.4+ · Apple Silicon + Intel universal · ad-hoc signed · zero third-party dependencies.
 
       - name: Upload artifact (manual runs)
         if: "!startsWith(github.ref, 'refs/tags/v')"

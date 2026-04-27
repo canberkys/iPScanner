@@ -1,6 +1,12 @@
 <div align="center">
   <img src="assets/icon-with-text.png" width="220" alt="iPScanner">
   <h3><em>See every device on your network.</em></h3>
+  <p>
+    <a href="https://github.com/canberkys/iPScanner/releases/latest"><img src="https://img.shields.io/github/v/release/canberkys/iPScanner?label=download&color=blue" alt="Latest release"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/canberkys/iPScanner?color=green" alt="License"></a>
+    <img src="https://img.shields.io/badge/macOS-14.4%2B-black?logo=apple" alt="macOS 14.4+">
+    <img src="https://img.shields.io/badge/binary-universal-purple" alt="Universal binary">
+  </p>
 </div>
 
 ---
@@ -9,13 +15,52 @@
 
 Open-source macOS counterpart to Advanced IP Scanner. Built with native SwiftUI, zero third-party dependencies, universal binary (Apple Silicon + Intel).
 
+## Screenshot
+
+<div align="center">
+  <img src="docs/screenshots/01-empty.png" width="800" alt="iPScanner — start screen with auto-detected default subnet">
+  <p><em>Start screen — auto-detected default subnet, scan profile picker (Quick / Standard / Deep), saved ranges sidebar.</em></p>
+</div>
+
+---
+
+## Installation
+
+1. Download the latest `.dmg` from **[Releases](https://github.com/canberkys/iPScanner/releases/latest)**.
+2. Open the `.dmg` and drag `iPScanner.app` into `Applications`.
+3. On first launch, macOS Gatekeeper will refuse to run the app because it isn't signed with an Apple Developer ID. Pick **one** of the workarounds below.
+
+<details>
+<summary><strong>First launch — Gatekeeper workaround</strong></summary>
+
+#### Option A — single command (recommended)
+
+Strip every quarantine attribute the system added during download:
+
+```bash
+xattr -cr /Applications/iPScanner.app
+```
+
+This runs once and the app launches normally from then on.
+
+#### Option B — UI route
+
+1. Right-click `iPScanner.app` in Finder → **Open** → **Open**.
+2. If that fails on macOS Sequoia (15) or Tahoe (26+), open **System Settings → Privacy & Security**, scroll to the *Security* section, and click **Open Anyway** next to "iPScanner was blocked".
+3. macOS will prompt once more — click **Open**.
+
+> ℹ️ iPScanner runs without sandboxing because network discovery requires direct ICMP / ARP / TCP socket access. All operations stay local — no telemetry, no third-party calls.
+
+</details>
+
 ---
 
 ## Features
 
-### Discovery
+<details>
+<summary><strong>Discovery</strong> — CIDR/range, ping, TCP fallback, ARP, OUI vendor (3-tier), mDNS, banners</summary>
 
-- **CIDR + range input**: `10.0.0.0/24`, `192.168.1.50-192.168.1.200`, or comma-separated multiple ranges (`10.0.0.0/24, 172.16.0.0/24`)
+- **CIDR + range input** — `10.0.0.0/24`, `192.168.1.50-192.168.1.200`, or comma-separated multiple ranges (`10.0.0.0/24, 172.16.0.0/24`)
 - **Auto-detected default subnet** from the active interface (en0/en1)
 - **Concurrent ping** (32 parallel) using `/sbin/ping`
 - **TCP fallback probe** (445/80/443/22/3389) for hosts that block ICMP — Windows Firewall, etc.
@@ -25,17 +70,23 @@ Open-source macOS counterpart to Advanced IP Scanner. Built with native SwiftUI,
 - **mDNS / Bonjour** service discovery (`_airplay`, `_homekit`, `_smb`, `_ssh`, `_ipp`, `_googlecast`, …)
 - **HTTP / HTTPS title** and **SSH banner** fetch on demand (port-scan banner enrichment)
 
-### Actions
+</details>
+
+<details>
+<summary><strong>Actions</strong> — port scanner, context menu, Wake-on-LAN, multi-select</summary>
 
 - **Port scanner** — common-ports preset, web preset, custom ranges (`8000-8100`), bounded concurrency to avoid connection storms
-- **Right-click context menu** per host: HTTP / HTTPS / SSH / VNC / RDP / SMB / AFP / Telnet / Ping in Terminal / Refresh / Wake-on-LAN / Show Details / Copy IP/Hostname/MAC / Remove from list
+- **Right-click context menu** per host: HTTP / HTTPS / SSH / VNC / RDP / SMB / AFP / Telnet / Ping in Terminal / Refresh / Wake-on-LAN / Copy IP/Hostname/MAC / Remove from list
 - **Wake-on-LAN** — UDP magic packet, single host or bulk
 - **⌘C** copies selected IP(s) from the table
 - **Multi-select** for bulk actions
 
-### Inspector
+</details>
 
-Selecting a single host opens the right-side panel automatically — it shows:
+<details>
+<summary><strong>Inspector</strong> — auto-opens on selection, ping monitor, action grid</summary>
+
+Selecting a single host opens the right-side panel automatically. The panel is resizable and its width is persisted.
 
 - Header — device-type icon, IP, vendor, classification
 - Inline label editor with `#tag` syntax (searchable, MAC-anchored, persisted)
@@ -44,36 +95,41 @@ Selecting a single host opens the right-side panel automatically — it shows:
 - Live ping monitor — sparkline + avg / min / max / loss stats (1s interval, 60-sample buffer)
 - Action grid grouped into Connect / Tools / Copy
 
-### Persistence & I/O
+</details>
+
+<details>
+<summary><strong>v1.1 additions</strong> — scan profiles, interface picker, auto-rescan, snapshot diff, search highlighting, warnings hub</summary>
+
+- **Scan profiles** — *Quick* (ping only) / *Standard* (+ TCP fallback) / *Deep* (+ auto port scan & banner fetch on alive hosts)
+- **Network interface picker** — choose `en0` / `en1` / `utun` (VPN) from a menu; subnet auto-fills
+- **Auto-rescan** — off / 30 s / 1 m / 5 m / 15 m, kicks in after the previous scan finishes
+- **Change detection / snapshot diff** — load a previous `.ipscan.json` as comparison baseline; per-row badges (`+` new, `~` changed, `−` missing) plus a summary popover listing missing hosts
+- **Permission/failure surfacing** — status-bar warnings hub (ARP table empty, banner fetch failures) with a click-through detail popover
+- **Search match highlighting** — query substrings highlighted in IP / Hostname / MAC / Vendor / Title / Label cells
+- **Resizable inspector** — drag the divider; width persisted
+
+</details>
+
+<details>
+<summary><strong>Persistence & I/O</strong></summary>
 
 - **Saved ranges** with friendly names (`Home`, `Office VLAN`) — sidebar with rename support
 - **Snapshot save/load** — `.ipscan.json`, ⌘O / ⌘⌥S
 - **Export** as CSV / JSON / clipboard
 - Per-host labels persisted in `UserDefaults`
 
-### UX
+</details>
 
-- macOS-native: NavigationSplitView (sidebar + detail + inspector), `ContentUnavailableView`, App-menu commands, custom About panel, GitHub Help menu
+<details>
+<summary><strong>UX</strong> — split view, app menus, appearance picker, status bar</summary>
+
+- macOS-native: `NavigationSplitView` (sidebar + detail + inspector), `ContentUnavailableView`, App-menu commands, custom About panel, GitHub Help menu
 - **Appearance picker** in `View → Appearance` (System / Light / Dark)
 - **Live updates** — alive hosts stream into the table as they're discovered
-- **Status bar** — progress, alive count, filter match, elapsed time
+- **Status bar** — progress, alive count, filter match, elapsed time, warnings, diff summary
 - Sandbox disabled (required for ICMP / ARP / raw socket access)
 
----
-
-## Installation
-
-Download the latest `.dmg` from [Releases](https://github.com/canberkys/iPScanner/releases), open, and drag `iPScanner.app` into `Applications`.
-
-**First launch (Gatekeeper):** the app is currently distributed without an Apple Developer ID signature. To remove the quarantine attribute:
-
-```bash
-xattr -d com.apple.quarantine /Applications/iPScanner.app
-```
-
-…or right-click the app in Finder → **Open** → **Open** (only required the first time).
-
-> ⚠️ iPScanner runs without sandboxing because network discovery requires direct ICMP / ARP / TCP socket access. All operations stay local — no telemetry, no third-party calls.
+</details>
 
 ---
 
@@ -90,9 +146,10 @@ open iPScanner.xcodeproj
 # Cmd+R to build and run
 ```
 
-The IEEE OUI databases (`oui.txt`, `oui28.txt`, `oui36.txt`) are bundled in the repo. The release CI workflow refreshes them from `standards-oui.ieee.org` on every tag push.
+<details>
+<summary>OUI databases & tests</summary>
 
-### Run tests
+The IEEE OUI databases (`oui.txt`, `oui28.txt`, `oui36.txt`) are bundled in the repo. The release CI workflow refreshes them from `standards-oui.ieee.org` on every tag push.
 
 ```bash
 xcodebuild test -scheme iPScanner -destination 'platform=macOS'
@@ -100,11 +157,14 @@ xcodebuild test -scheme iPScanner -destination 'platform=macOS'
 
 85+ unit tests cover the parsers (CIDR/range, ports), OUI 3-tier vendor lookup, CSV escaping, snapshot encode/decode, snapshot diff, device classifier, and saved-range model.
 
+</details>
+
 ---
 
 ## Roadmap
 
-Completed in v1.0:
+<details>
+<summary><strong>v1.0 — completed</strong></summary>
 
 - [x] Multi-range scan input
 - [x] TCP fallback probe (ICMP-blocked hosts)
@@ -120,17 +180,22 @@ Completed in v1.0:
 - [x] App-menu commands + keyboard shortcuts
 - [x] Appearance picker (System / Light / Dark)
 
-Completed in v1.1:
+</details>
 
-- [x] Scan profiles — Quick (ping-only) / Standard (+ TCP fallback) / Deep (+ auto port scan & banner fetch)
-- [x] Network interface picker — choose en0 / en1 / utun (VPN) explicitly with subnet auto-fill
-- [x] Auto-rescan — off / 30s / 1m / 5m / 15m
-- [x] Change detection — load a previous snapshot as comparison baseline; row badges + summary popover (+new / ~changed / -missing)
-- [x] Permission/failure surfacing — status-bar warnings hub (ARP empty, banner fetch failures)
-- [x] Search match highlighting — query substrings highlighted in IP / Hostname / Vendor / Title / Label cells
-- [x] Resizable inspector — drag the inspector divider, width is persisted
+<details>
+<summary><strong>v1.1 — completed</strong></summary>
 
-Planned for v1.2+:
+- [x] Scan profiles — Quick / Standard / Deep
+- [x] Network interface picker
+- [x] Auto-rescan
+- [x] Change detection / snapshot diff
+- [x] Permission/failure surfacing
+- [x] Search match highlighting
+- [x] Resizable inspector
+
+</details>
+
+**Planned for v1.2+**
 
 - [ ] Menu-bar mode with new-device notifications
 - [ ] IPv6 support
@@ -140,24 +205,18 @@ Planned for v1.2+:
 
 ## Tech stack
 
-- SwiftUI (macOS 14.4+, `@Observable`, `NavigationSplitView`, `Inspector`)
-- Swift Concurrency (`async/await`, `TaskGroup`, `AsyncStream`)
-- Network framework — `NWConnection` (TCP probes), `NWBrowser` (Bonjour)
-- `Process` for `/sbin/ping`, `/usr/sbin/arp`, Terminal launchers
-- Zero third-party Swift packages
+SwiftUI (macOS 14.4+, `@Observable`, `NavigationSplitView`) · Swift Concurrency (`async/await`, `TaskGroup`, `AsyncStream`) · Network framework (`NWConnection`, `NWBrowser`) · `Process` for `/sbin/ping`, `/usr/sbin/arp` · zero third-party Swift packages.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE).
 
-Vendor data: [IEEE Standards Association OUI registries](https://standards-oui.ieee.org/) (public)
-
----
+Vendor data from the [IEEE Standards Association OUI registries](https://standards-oui.ieee.org/) (public).
 
 ## Author
 
 **Canberk Kılıçarslan** — [canberkki.com](https://canberkki.com)
 
-Feedback, bug reports, and pull requests welcome.
+Feedback, bug reports, and pull requests welcome via [Issues](https://github.com/canberkys/iPScanner/issues).
