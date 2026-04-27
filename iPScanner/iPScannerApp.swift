@@ -155,7 +155,7 @@ private func showCustomAboutPanel() {
 
     NSApp.orderFrontStandardAboutPanel(options: [
         .applicationName: "iPScanner",
-        .applicationVersion: "1.1.0",
+        .applicationVersion: "1.2.0",
         .credits: credits,
         .init(rawValue: "Copyright"): "© 2026 Canberk Kılıçarslan"
     ])
