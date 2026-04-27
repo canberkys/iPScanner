@@ -65,6 +65,10 @@ struct iPScannerApp: App {
                     }
                 }
                 Divider()
+                Button("Check for Updates…") {
+                    NotificationCenter.default.post(name: .iPScannerCommandCheckForUpdates, object: nil)
+                }
+                Divider()
                 Button("Open OUI Database in Finder") {
                     if let url = Bundle.main.url(forResource: "oui", withExtension: "txt") {
                         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -166,4 +170,5 @@ extension Notification.Name {
     static let iPScannerCommandSaveSnapshot = Notification.Name("iPScanner.command.saveSnapshot")
     static let iPScannerCommandCompareSnapshot = Notification.Name("iPScanner.command.compareSnapshot")
     static let iPScannerCommandClearComparison = Notification.Name("iPScanner.command.clearComparison")
+    static let iPScannerCommandCheckForUpdates = Notification.Name("iPScanner.command.checkForUpdates")
 }
