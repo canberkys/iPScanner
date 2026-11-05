@@ -16,6 +16,8 @@ struct Host: Identifiable, Hashable {
     var rttMs: Double?
     var ttl: Int?
     var netbiosName: String?
+    var mdnsName: String?
+    var ipv6Addresses: [String]
     var workgroup: String?
     var openPorts: [Int]
     var serviceTitle: String?
@@ -31,6 +33,8 @@ struct Host: Identifiable, Hashable {
         rttMs: Double? = nil,
         ttl: Int? = nil,
         netbiosName: String? = nil,
+        mdnsName: String? = nil,
+        ipv6Addresses: [String] = [],
         workgroup: String? = nil,
         openPorts: [Int] = [],
         serviceTitle: String? = nil,
@@ -45,6 +49,8 @@ struct Host: Identifiable, Hashable {
         self.rttMs = rttMs
         self.ttl = ttl
         self.netbiosName = netbiosName
+        self.mdnsName = mdnsName
+        self.ipv6Addresses = ipv6Addresses
         self.workgroup = workgroup
         self.openPorts = openPorts
         self.serviceTitle = serviceTitle
@@ -70,6 +76,8 @@ struct Host: Identifiable, Hashable {
         if let v = update.rttMs { merged.rttMs = v }
         if let v = update.ttl { merged.ttl = v }
         if let v = update.netbiosName { merged.netbiosName = v }
+        if let v = update.mdnsName { merged.mdnsName = v }
+        if !update.ipv6Addresses.isEmpty { merged.ipv6Addresses = update.ipv6Addresses }
         if let v = update.workgroup { merged.workgroup = v }
         if let v = update.serviceTitle { merged.serviceTitle = v }
         merged.openPorts = update.openPorts.isEmpty ? merged.openPorts : update.openPorts

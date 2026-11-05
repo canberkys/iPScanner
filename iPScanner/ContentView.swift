@@ -31,8 +31,17 @@ struct ContentView: View {
     }
 
     // Column visibility (persisted) — Status, Device icon, IP always visible.
+    /// Lets users drag columns into a new order; saved app-wide so it survives relaunch.
+    @State var columnCustomization = ColumnPrefs.load()
     @AppStorage("iPScanner.col.label") var showColLabel = true
     @AppStorage("iPScanner.col.hostname") var showColHostname = true
+    @AppStorage("iPScanner.col.mdnsName") var showColMDNSName = true
+    @AppStorage("iPScanner.col.smbName") var showColSMBName = true
+    @AppStorage("iPScanner.col.identification") var showColIdentification = true
+    @AppStorage("iPScanner.col.dnsName") var showColDNSName = true
+    @AppStorage("iPScanner.col.smbDomain") var showColSMBDomain = true
+    @AppStorage("iPScanner.col.ipv6Local") var showColIPv6Local = true
+    @AppStorage("iPScanner.col.ipv6Global") var showColIPv6Global = true
     @AppStorage("iPScanner.col.mac") var showColMAC = false
     @AppStorage("iPScanner.col.vendor") var showColVendor = true
     @AppStorage("iPScanner.col.title") var showColTitle = false
@@ -157,6 +166,7 @@ struct ContentView: View {
             if selection.count != 1 { inspectorPresented = false }
         }
         .onDisappear { controller.stop(); mdns.stop() }
+        .onChange(of: columnCustomization) { _, newValue in ColumnPrefs.save(newValue) }
         .onAppear {
             columnVisibility = sidebarVisible ? .all : .detailOnly
             controller.profile = ScanProfile(rawValue: profileRaw) ?? .standard

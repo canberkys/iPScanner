@@ -11,7 +11,7 @@ final class ScanController {
         case stopped(scanned: Int, total: Int)
     }
 
-    static let portScanHostConcurrency = 4
+    static let portScanHostConcurrency = 32
 
     // Injectable operations keep lifecycle tests independent of the local network.
     struct Operations {
@@ -618,7 +618,9 @@ final class ScanController {
         async let hostnameTask = DNSResolver.reverseLookup(ip)
         async let netbiosTask: NetBIOSResolver.Result? =
             profile.includeNetBIOS ? NetBIOSResolver.resolve(ip) : nil
+        async let mdnsTask: String? = MDNSReverseResolver.resolve(ip)
         let hostname = await hostnameTask
+        let mdnsName = await mdnsTask
         let netbios = await netbiosTask
         let mac = arpTable[ip]
         let resolution = OUILookup.shared.resolve(mac)
@@ -632,6 +634,7 @@ final class ScanController {
         hosts[idx2].vendor = resolution.vendor
         hosts[idx2].vendorStatus = mac == nil && arp.error != nil ? .queryFailed : resolution.status
         hosts[idx2].netbiosName = netbios?.computerName
+        hosts[idx2].mdnsName = mdnsName
         hosts[idx2].workgroup = netbios?.workgroup
         hosts[idx2].openPorts = []
         hosts[idx2].serviceTitle = nil
