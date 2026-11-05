@@ -12,8 +12,8 @@ struct DiscoverResult: Sendable, Hashable {
 }
 
 struct NetworkScanner: NetworkScanning {
-    static let pingConcurrency = 32
-    static let enrichConcurrency = 16
+    static let pingConcurrency = 96
+    static let enrichConcurrency = 32
     static let pingTimeoutMs = 800
     static let tcpFallbackPorts = [445, 80, 443, 22, 3389]
     static let tcpFallbackTimeoutMs = 400
@@ -53,18 +53,67 @@ struct NetworkScanner: NetworkScanning {
         continuation: AsyncStream<ScanEvent>.Continuation
     ) async {
         let total = addresses.count
+        async let ipv6Neighbors = IPv6Neighbors.discover(interfaces: NetworkInterface.scannableInterfaces().map(\.name))
         continuation.yield(.progress(scanned: 0, total: total))
 
         // --- Phase 1: discover (ping → TCP fallback) with bounded concurrency ---
         // Always yield dead hosts so the UI can filter on demand without re-scanning.
-        var alive: [(ip: String, rtt: Double, ttl: Int?)] = []
+        var alive: [(ip: String, rtt: Double?, ttl: Int?)] = []
         var scanned = 0
 
+        // One ICMP socket pings every address at once; only silent addresses need the
+        // slower TCP/mDNS probes below. Falls back to per-address pings if no socket.
+        var swept = await ICMPSweeper.sweep(addresses)
+        var arpConfirmed: [String: String] = [:]
+        if swept != nil {
+            // Second pass for silent addresses: sleepy devices that missed the first ARP
+            // request get another chance. Both passes make macOS resolve each address via ARP.
+            let silent = addresses.filter { swept?[$0] == nil }
+            if let again = await ICMPSweeper.sweep(silent, waitMs: 500) {
+                swept = swept?.merging(again) { first, _ in first }
+            }
+            try? await Task.sleep(for: .milliseconds(200))
+            let arp = await ARPLookup.read()
+            if arp.error == nil {
+                // Devices that drop ping still answer ARP, so a MAC entry means the host is up.
+                for ip in addresses where swept?[ip] == nil {
+                    if let mac = arp.entries[ip], !mac.isEmpty { arpConfirmed[ip] = mac }
+                }
+            } else {
+                swept = nil  // ARP unavailable: use the slower per-address probes instead
+            }
+        }
+        for ip in addresses {
+            if let reply = swept?[ip] {
+                scanned += 1
+                alive.append((ip, reply.rttMs, reply.ttl))
+                continuation.yield(.host(Host(ip: ip, rttMs: reply.rttMs, ttl: reply.ttl, status: .alive)))
+            } else if let mac = arpConfirmed[ip] {
+                scanned += 1
+                alive.append((ip, nil, nil))
+                continuation.yield(.host(Host(ip: ip, mac: mac, status: .alive)))
+            }
+        }
+        continuation.yield(.progress(scanned: scanned, total: total))
+        let skipPing = swept != nil
+        let pending: [String]
+        if swept != nil {
+            // Everything not found by ICMP or ARP is not on the network.
+            pending = []
+            for ip in addresses where swept?[ip] == nil && arpConfirmed[ip] == nil {
+                scanned += 1
+                continuation.yield(.host(Host(ip: ip, status: .dead)))
+            }
+            continuation.yield(.progress(scanned: scanned, total: total))
+        } else {
+            pending = addresses
+        }
+
         await withTaskGroup(of: (String, DiscoverResult?).self) { group in
-            var iter = addresses.makeIterator()
-            for _ in 0..<min(pingConcurrency, addresses.count) {
+            var iter = pending.makeIterator()
+            for _ in 0..<min(pingConcurrency, pending.count) {
                 guard let ip = iter.next() else { break }
-                group.addTask { (ip, await Self.discover(ip, useTCPFallback: useTCPFallback)) }
+                group.addTask { (ip, await Self.discover(ip, useTCPFallback: useTCPFallback, skipPing: skipPing)) }
             }
 
             while let (ip, result) = await group.next() {
@@ -78,7 +127,7 @@ struct NetworkScanner: NetworkScanning {
                 }
                 if Task.isCancelled { break }
                 if let next = iter.next() {
-                    group.addTask { (next, await Self.discover(next, useTCPFallback: useTCPFallback)) }
+                    group.addTask { (next, await Self.discover(next, useTCPFallback: useTCPFallback, skipPing: skipPing)) }
                 }
             }
             if Task.isCancelled { group.cancelAll() }
@@ -101,19 +150,31 @@ struct NetworkScanner: NetworkScanning {
             continuation.yield(.warning(.arpEmpty))
         }
         let oui = OUILookup.shared
+        let v6ByMAC = await ipv6Neighbors
+
+        // --- ARP-confirmed hosts: devices that drop ping and TCP probes (phones, tablets, IoT)
+        // still answer ARP, so any scanned address with a MAC entry is on the network.
+        let known = Set(alive.map(\.ip))
+        for ip in addresses where !known.contains(ip) {
+            guard let mac = arpTable[ip], !mac.isEmpty else { continue }
+            alive.append((ip, nil, nil))
+            continuation.yield(.host(Host(ip: ip, mac: mac, status: .alive)))
+        }
 
         // --- Phase 2: enrich (DNS + MAC + Vendor) per alive host ---
         await withTaskGroup(of: Host.self) { group in
             var iter = alive.makeIterator()
 
-            func enqueue(_ entry: (ip: String, rtt: Double, ttl: Int?)) {
+            func enqueue(_ entry: (ip: String, rtt: Double?, ttl: Int?)) {
                 let mac = arpTable[entry.ip]
                 let resolution = oui.resolve(mac)
                 group.addTask {
                     async let hostname = DNSResolver.reverseLookup(entry.ip)
                     async let netbios: NetBIOSResolver.Result? =
                         includeNetBIOS ? NetBIOSResolver.resolve(entry.ip) : nil
+                    async let mdnsLookup: String? = MDNSReverseResolver.resolveWithRetry(entry.ip)
                     let resolvedHost = await hostname
+                    let mdnsName = await mdnsLookup
                     let nb = await netbios
                     return Host(
                         ip: entry.ip,
@@ -124,6 +185,8 @@ struct NetworkScanner: NetworkScanning {
                         rttMs: entry.rtt,
                         ttl: entry.ttl,
                         netbiosName: nb?.computerName,
+                        mdnsName: mdnsName,
+                        ipv6Addresses: mac.flatMap { v6ByMAC[$0] } ?? [],
                         workgroup: nb?.workgroup,
                         status: .alive
                     )
@@ -152,11 +215,21 @@ struct NetworkScanner: NetworkScanning {
     // MARK: - discover (ping with TCP fallback)
 
     /// Returns RTT and (when ICMP succeeded) TTL if the host responded.
-    static func discover(_ ip: String, useTCPFallback: Bool = true) async -> DiscoverResult? {
+    static func discover(_ ip: String, useTCPFallback: Bool = true, skipPing: Bool = false) async -> DiscoverResult? {
         guard !Task.isCancelled else { return nil }
-        if let pinged = await ping(ip) { return pinged }
-        guard !Task.isCancelled else { return nil }
-        return useTCPFallback ? await tcpFallback(ip) : nil
+        // Ask for the mDNS name at the same time as ping/TCP, so devices that ignore
+        // both (phones, tablets, some IoT) are still found at no extra wall time.
+        let started = Date()
+        async let mdnsReply: String? = MDNSReverseResolver.resolve(ip)
+        var found: DiscoverResult?
+        if !skipPing { found = await ping(ip) }
+        if found == nil, !Task.isCancelled, useTCPFallback {
+            found = await tcpFallback(ip)
+        }
+        let announced = await mdnsReply
+        if let found { return found }
+        guard announced != nil else { return nil }
+        return DiscoverResult(rttMs: max(0, Date().timeIntervalSince(started) * 1000), ttl: nil)
     }
 
     /// ICMP ping via /sbin/ping. nil if host did not reply.

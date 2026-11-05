@@ -120,6 +120,13 @@ extension ContentView {
                 Menu {
                     Toggle("Label", isOn: $showColLabel)
                     Toggle("Hostname", isOn: $showColHostname)
+                    Toggle("mDNS Name", isOn: $showColMDNSName)
+                    Toggle("SMB Name", isOn: $showColSMBName)
+                    Toggle("Identification", isOn: $showColIdentification)
+                    Toggle("DNS Name", isOn: $showColDNSName)
+                    Toggle("SMB Domain", isOn: $showColSMBDomain)
+                    Toggle("IPv6 Local", isOn: $showColIPv6Local)
+                    Toggle("IPv6 Global", isOn: $showColIPv6Global)
                     Toggle("MAC", isOn: $showColMAC)
                     Toggle("Vendor", isOn: $showColVendor)
                     Toggle("Title", isOn: $showColTitle)
@@ -131,11 +138,15 @@ extension ContentView {
                         showColLabel = true; showColHostname = true; showColMAC = true
                         showColVendor = true; showColTitle = true; showColRTT = true
                         showColTTL = true; showColPorts = true
+                        showColMDNSName = true; showColSMBName = true; showColIdentification = true
+                        showColDNSName = true; showColSMBDomain = true; showColIPv6Local = true; showColIPv6Global = true
                     }
                     Button("Reset to Default") {
                         showColLabel = true; showColHostname = true; showColMAC = false
                         showColVendor = true; showColTitle = false; showColRTT = false
                         showColTTL = false; showColPorts = true
+                        showColMDNSName = true; showColSMBName = true; showColIdentification = true
+                        showColDNSName = true; showColSMBDomain = true; showColIPv6Local = true; showColIPv6Global = true
                     }
                 } label: {
                     Image(systemName: "rectangle.split.3x1")

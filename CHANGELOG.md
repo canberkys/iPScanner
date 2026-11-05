@@ -5,6 +5,25 @@ All notable changes to iPScanner are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- Add mDNS Name, SMB Name, Identification, DNS Name, SMB Domain, IPv6 Local and IPv6 Global columns. Hostname now falls back to the mDNS name, then the NetBIOS name, then the device's web page title when reverse DNS returns nothing (common on home networks).
+- Look up each device's mDNS name directly (reverse PTR query to UDP 5353) instead of relying on Bonjour service browsing, so devices that advertise no services are named too.
+- Show a device model (for example `Mac16,10`) or printer name in Identification, read from Bonjour TXT records.
+- Fall back to an inferred vendor ("Apple, Inc.") for devices whose MAC prefix is missing from the bundled vendor list but that identify themselves as Apple.
+- Let columns be dragged into a new order; the order is saved between launches.
+- Discover IPv6 addresses through a link-local multicast ping and the neighbor table.
+
+### Changed
+
+- Discover hosts with one in-process ICMP socket instead of launching `/sbin/ping` per address, and count devices that answer ARP but drop ping as alive. A /22 scan finds the same devices in roughly a quarter of the time.
+- Run the Deep profile's port scan and banner fetch on 32 hosts at a time instead of 4.
+
+### Fixed
+
+- Resolve Bonjour services to IPv4 addresses. Services of other devices resolved to IPv6 and were discarded, so only the scanning Mac's own services appeared.
+- Request Bonjour TXT records, which were previously always empty.
+
 ## [1.3.1] — 2026-09-28
 
 ### Fixed
