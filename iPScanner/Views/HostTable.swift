@@ -140,6 +140,9 @@ extension ContentView {
                 }
             }
             .frame(maxHeight: .infinity)
+            // Edit › Copy (⌘C) copies selected IPs only while the table has focus;
+            // text fields keep their normal copy behavior.
+            .onCopyCommand { selectedIPsForCopy() }
             .contextMenu(forSelectionType: Host.ID.self) { ids in
                 contextMenu(for: ids)
             } primaryAction: { ids in

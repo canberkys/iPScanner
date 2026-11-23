@@ -57,7 +57,7 @@ targets:
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         NSHumanReadableCopyright: "© 2026 Canberk Kılıçarslan. MIT License."
         NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
         SUFeedURL: https://raw.githubusercontent.com/canberkys/iPScanner/main/appcast.xml
         SUPublicEDKey: lvTv3xWikHyIAqm62expMC6zDTJWOnms6Lm1+JTg5tk=
         SUScheduledCheckInterval: 86400

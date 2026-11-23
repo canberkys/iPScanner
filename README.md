@@ -157,8 +157,9 @@ a universal build is not proof of testing on Intel hardware or every supported O
 
 ## What's next
 
-Continue the remaining compatibility and accessibility checks. History, IPv6 and menu-bar mode
-are outside the current update. [Follow-up work](docs/next-phase-plan-tr.md).
+The phased roadmap covers urgent fixes (1.3.2), performance and architecture,
+interface, accessibility and localization work, new features such as device history,
+alerts, a menu-bar mode and IPv6, and CI/test hardening. [Roadmap (Turkish)](docs/roadmap-tr.md).
 
 ## Project
 

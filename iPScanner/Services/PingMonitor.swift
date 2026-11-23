@@ -39,7 +39,8 @@ final class PingMonitor {
                 let result = await NetworkScanner.ping(ip)
                 if Task.isCancelled { break }
                 guard let self, self.trackedIP == ip else { break }
-                self.samples.append(result?.rttMs)
+                if case .reply(let reply) = result { self.samples.append(reply.rttMs) }
+                else { self.samples.append(nil) }
                 if self.samples.count > Self.bufferSize {
                     self.samples.removeFirst(self.samples.count - Self.bufferSize)
                 }

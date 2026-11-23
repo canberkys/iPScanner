@@ -16,42 +16,37 @@ enum NetBIOSResolver {
     static let timeoutMs = 800
 
     static func resolve(_ ip: String) async -> Result? {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Result?, Never>) in
-            let queue = DispatchQueue.global(qos: .userInitiated)
-            let host = NWEndpoint.Host(ip)
-            guard let port = NWEndpoint.Port(rawValue: 137) else {
-                continuation.resume(returning: nil)
-                return
-            }
-            let connection = NWConnection(host: host, port: port, using: .udp)
-            let state = ResumeOnce()
-            let query = buildQuery(transactionID: UInt16.random(in: 0...UInt16.max))
+        guard !Task.isCancelled, let port = NWEndpoint.Port(rawValue: 137) else { return nil }
+        let connection = NWConnection(host: NWEndpoint.Host(ip), port: port, using: .udp)
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Result?, Never>) in
+                let queue = DispatchQueue.global(qos: .userInitiated)
+                let state = ResumeOnce()
+                let query = buildQuery(transactionID: UInt16.random(in: 0...UInt16.max))
 
-            let timeoutWork = DispatchWorkItem {
-                connection.cancel()
-                state.fire { continuation.resume(returning: nil) }
-            }
-            queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs), execute: timeoutWork)
-
-            connection.stateUpdateHandler = { newState in
-                switch newState {
-                case .ready:
-                    connection.send(content: query, completion: .contentProcessed { _ in })
-                    connection.receiveMessage { data, _, _, _ in
-                        timeoutWork.cancel()
-                        let parsed: Result? = data.flatMap { parseResponse($0) }
-                        connection.cancel()
-                        state.fire { continuation.resume(returning: parsed) }
-                    }
-                case .failed, .cancelled:
-                    timeoutWork.cancel()
-                    state.fire { continuation.resume(returning: nil) }
-                default:
-                    break
+                // Every exit path cancels the connection so its UDP socket is released.
+                let finish: @Sendable (Result?) -> Void = { value in
+                    connection.cancel()
+                    state.fire { continuation.resume(returning: value) }
                 }
+                queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) { finish(nil) }
+
+                connection.stateUpdateHandler = { newState in
+                    switch newState {
+                    case .ready:
+                        connection.send(content: query, completion: .contentProcessed { _ in })
+                        connection.receiveMessage { data, _, _, _ in
+                            finish(data.flatMap { parseResponse($0) })
+                        }
+                    case .failed, .cancelled:
+                        finish(nil)
+                    default:
+                        break
+                    }
+                }
+                connection.start(queue: queue)
             }
-            connection.start(queue: queue)
-        }
+        } onCancel: { connection.cancel() }
     }
 
     // MARK: - Wire format

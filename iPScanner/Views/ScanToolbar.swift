@@ -110,13 +110,6 @@ extension ContentView {
                     .help(controller.activeFilterNames.joined(separator: ", "))
                 }
 
-                // Hidden ⌘C handler — receives keyboard shortcut without taking visual space.
-                Button("") { copySelectedIPs() }
-                    .keyboardShortcut("c", modifiers: [.command])
-                    .frame(width: 0, height: 0)
-                    .opacity(0)
-                    .accessibilityHidden(true)
-
                 Menu {
                     Toggle("Label", isOn: $showColLabel)
                     Toggle("Hostname", isOn: $showColHostname)

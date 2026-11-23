@@ -130,8 +130,14 @@ enum ExportService {
         return "iPScanner-\(formatter.string(from: Date())).\(ext)"
     }
 
-    private static func escape(_ value: String?) -> String {
-        guard let v = value, !v.isEmpty else { return "" }
+    /// Characters that make spreadsheet apps evaluate a cell as a formula.
+    private static let formulaTriggers: Set<Character> = ["=", "+", "-", "@", "\t", "\r"]
+
+    static func escape(_ value: String?) -> String {
+        guard var v = value, !v.isEmpty else { return "" }
+        // Values such as HTTP titles come from untrusted devices; prefix a quote so
+        // `=HYPERLINK(...)` is shown as text instead of being run as a formula.
+        if let first = v.first, formulaTriggers.contains(first) { v = "'" + v }
         if v.contains(",") || v.contains("\"") || v.contains("\n") || v.contains("\r") {
             return "\"" + v.replacingOccurrences(of: "\"", with: "\"\"") + "\""
         }

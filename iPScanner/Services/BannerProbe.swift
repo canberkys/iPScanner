@@ -47,8 +47,8 @@ enum BannerProbe {
         config.timeoutIntervalForResource = 2.0
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        // Trust self-signed certs on local devices via delegate
-        return URLSession(configuration: config, delegate: TrustAllDelegate.shared, delegateQueue: nil)
+        // Trusts self-signed certs on local devices and blocks redirects to other hosts.
+        return URLSession(configuration: config, delegate: BannerSessionDelegate.shared, delegateQueue: nil)
     }()
 
     private static func extractTitle(from html: String) -> String? {
@@ -142,8 +142,26 @@ enum BannerProbe {
 
 // Trust self-signed certs only for hosts in private/local IP ranges (RFC1918 + loopback + link-local).
 // Public hosts use default validation so we don't accidentally MITM real internet services.
-private final class TrustAllDelegate: NSObject, URLSessionDelegate {
-    static let shared = TrustAllDelegate()
+// Redirects are followed only when they stay on the probed host, so a device on the LAN
+// cannot make the scanner contact an internet address.
+final class BannerSessionDelegate: NSObject, URLSessionTaskDelegate {
+    static let shared = BannerSessionDelegate()
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        completionHandler(Self.allowsRedirect(from: task.originalRequest?.url, to: request.url) ? request : nil)
+    }
+
+    /// Same host only; the scheme and port may change (e.g. http://ip → https://ip:8443).
+    static func allowsRedirect(from original: URL?, to target: URL?) -> Bool {
+        guard let from = original?.host?.lowercased(), let to = target?.host?.lowercased() else { return false }
+        return from == to
+    }
 
     func urlSession(
         _ session: URLSession,

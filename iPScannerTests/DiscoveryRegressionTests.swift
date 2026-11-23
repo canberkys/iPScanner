@@ -1,4 +1,5 @@
 import XCTest
+import Darwin
 @testable import iPScanner
 
 final class DiscoveryRegressionTests: XCTestCase {
@@ -24,9 +25,51 @@ final class DiscoveryRegressionTests: XCTestCase {
     }
 
     func testPingStillDiscoversLocalhost() async {
-        let result = await NetworkScanner.ping("127.0.0.1")
-        XCTAssertNotNil(result)
-        XCTAssertNotNil(result?.ttl)
+        guard case .reply(let result) = await NetworkScanner.ping("127.0.0.1") else {
+            return XCTFail("Expected an ICMP reply from localhost")
+        }
+        XCTAssertNotNil(result.ttl)
+    }
+
+    func testPingLaunchFailureIsReportedSeparately() async {
+        let result = await NetworkScanner.runPingDetailed(
+            executable: URL(fileURLWithPath: "/nonexistent/ping"), arguments: ["127.0.0.1"], timeout: 1)
+        guard case .launchFailed(let message) = result else { return XCTFail("Expected launchFailed, got \(result)") }
+        XCTAssertTrue(message.contains("/nonexistent/ping"))
+    }
+
+    func testTCPFallbackTreatsConnectionRefusedAsAlive() async throws {
+        // Bind and immediately close a loopback port so connecting to it gets a TCP reset.
+        let port = try closedLoopbackPort()
+        let result = await NetworkScanner.tcpFallback("127.0.0.1", ports: [port], timeoutMs: 2000)
+        XCTAssertNotNil(result, "A reset proves the host is up")
+        XCTAssertLessThan(result?.rttMs ?? .infinity, 1000, "RTT should be the first answer, not the timeout")
+    }
+
+    func testProbeDistinguishesRefusedFromOpen() async throws {
+        let port = try closedLoopbackPort()
+        let outcome = await PortScanner.outcome(ip: "127.0.0.1", port: port, timeoutMs: 2000)
+        XCTAssertEqual(outcome, .refused)
+        let open = await PortScanner.probe("127.0.0.1", ports: [port], timeoutMs: 500)
+        XCTAssertEqual(open, [], "Refused ports are not open ports")
+    }
+
+    private func closedLoopbackPort() throws -> Int {
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        guard fd >= 0 else { throw POSIXError(.EBADF) }
+        defer { close(fd) }
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        addr.sin_port = 0
+        var len = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bound = withUnsafeMutablePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { ptr -> Bool in
+                Darwin.bind(fd, ptr, len) == 0 && Darwin.getsockname(fd, ptr, &len) == 0
+            }
+        }
+        guard bound else { throw POSIXError(.EADDRINUSE) }
+        return Int(UInt16(bigEndian: addr.sin_port))
     }
 
     @MainActor

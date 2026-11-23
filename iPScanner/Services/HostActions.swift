@@ -26,6 +26,7 @@ enum HostActions {
             return
         }
         // Fallback: write a .rdp file and let LaunchServices pick a handler
+        pruneStaleScripts()
         let url = cacheDir.appendingPathComponent("\(ip).rdp")
         let body = """
         full address:s:\(ip)
@@ -109,7 +110,9 @@ enum HostActions {
             return
         }
         let arguments = body.dropFirst(command.count)
-        let script = "#!/bin/bash\n\(executable)\(arguments)"
+        pruneStaleScripts()
+        // The script removes itself once Terminal starts it, so nothing accumulates in Caches.
+        let script = "#!/bin/bash\nrm -f -- \"$0\"\n\(executable)\(arguments)"
         do {
             try script.write(to: url, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes(
@@ -121,5 +124,16 @@ enum HostActions {
             return
         }
         open(url)
+    }
+
+    /// Removes `.command` and `.rdp` files left by earlier versions or by scripts that never ran.
+    private static func pruneStaleScripts(olderThan age: TimeInterval = 3600) {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: cacheDir, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        let cutoff = Date().addingTimeInterval(-age)
+        for file in files where ["command", "rdp"].contains(file.pathExtension) {
+            let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            if modified < cutoff { try? fm.removeItem(at: file) }
+        }
     }
 }

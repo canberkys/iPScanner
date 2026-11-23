@@ -5,6 +5,33 @@ All notable changes to iPScanner are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Count hosts that answer a TCP probe with a reset (connection refused) as responding, so devices that block ICMP are no longer listed as unresponsive; the fallback RTT is now the time to the first answer.
+- Report when `/sbin/ping` cannot run instead of silently marking every host unresponsive; the CLI prints the warning and exits with code 2.
+- Port scans keep earlier results for ports outside the scanned set instead of overwriting them.
+- Refreshing a device keeps its known MAC address, label and vendor when ARP returns nothing.
+- Opening a scan file shows its labels without saving them; you can choose to keep them. Return chooses Not Now, so keeping them always takes a click.
+- Unreadable saved labels or networks are backed up and reported instead of being overwritten on the next save.
+- Scan files from a newer format version show a clear message; snapshots of imported target lists record the targets.
+- Wake-on-LAN enables broadcast on its socket and also sends to each local subnet's broadcast address.
+- Menu commands act on the active window only, menu items are disabled when they do nothing, and New Window (⌘N) is back.
+- ⌘C copies selected IP addresses only when the device table has focus; text fields copy normally.
+- NetBIOS lookups release their connection on failure and stop when a scan is cancelled.
+
+### Security
+
+- Accept only canonical dotted-decimal IPv4 (no leading zeros, signs or empty parts), so a crafted snapshot cannot display one address while a connection tool reaches another.
+- Neutralize spreadsheet formulas in CSV exports; device-supplied page titles are untrusted.
+- HTTP title fetches follow redirects only on the probed host.
+- Replace the app-wide `NSAllowsArbitraryLoads` exception with `NSAllowsLocalNetworking`.
+- Terminal helper scripts delete themselves after starting; stale `.command` and `.rdp` files are removed.
+- The feedback relay neutralizes `@mentions` and embedded images, labels issues, and supports an optional daily per-IP cap.
+
+### Changed
+
+- Release builds and CI check that the tag matches `project.yml` and that the build number is newer than the published appcast, so Sparkle cannot silently skip an update.
+
 ## [1.3.1] — 2026-09-28
 
 ### Fixed

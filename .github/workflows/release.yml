@@ -5,9 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. 1.3.1)'
+        description: 'Version matching MARKETING_VERSION in project.yml (e.g. 1.3.2)'
         required: true
-        default: '1.3.1'
 permissions:
   contents: write
 jobs:

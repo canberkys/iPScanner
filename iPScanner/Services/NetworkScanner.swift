@@ -11,6 +11,14 @@ struct DiscoverResult: Sendable, Hashable {
     let ttl: Int?
 }
 
+/// Outcome of one ping process. `launchFailed` is kept apart from `noReply` so a
+/// missing or blocked /sbin/ping is reported instead of marking every host dead.
+enum PingResult: Sendable {
+    case reply(DiscoverResult)
+    case noReply
+    case launchFailed(String)
+}
+
 struct NetworkScanner: NetworkScanning {
     static let pingConcurrency = 32
     static let enrichConcurrency = 16
@@ -59,15 +67,18 @@ struct NetworkScanner: NetworkScanning {
         // Always yield dead hosts so the UI can filter on demand without re-scanning.
         var alive: [(ip: String, rtt: Double, ttl: Int?)] = []
         var scanned = 0
+        var pingLaunchError: String?
 
-        await withTaskGroup(of: (String, DiscoverResult?).self) { group in
+        await withTaskGroup(of: (String, Discovery).self) { group in
             var iter = addresses.makeIterator()
             for _ in 0..<min(pingConcurrency, addresses.count) {
                 guard let ip = iter.next() else { break }
-                group.addTask { (ip, await Self.discover(ip, useTCPFallback: useTCPFallback)) }
+                group.addTask { (ip, await Self.discoverDetailed(ip, useTCPFallback: useTCPFallback)) }
             }
 
-            while let (ip, result) = await group.next() {
+            while let (ip, discovery) = await group.next() {
+                let result = discovery.result
+                if pingLaunchError == nil, let error = discovery.pingLaunchError { pingLaunchError = error }
                 scanned += 1
                 continuation.yield(.progress(scanned: scanned, total: total))
                 if let result = result {
@@ -78,10 +89,14 @@ struct NetworkScanner: NetworkScanning {
                 }
                 if Task.isCancelled { break }
                 if let next = iter.next() {
-                    group.addTask { (next, await Self.discover(next, useTCPFallback: useTCPFallback)) }
+                    group.addTask { (next, await Self.discoverDetailed(next, useTCPFallback: useTCPFallback)) }
                 }
             }
             if Task.isCancelled { group.cancelAll() }
+        }
+
+        if let pingLaunchError {
+            continuation.yield(.warning(.pingUnavailable(pingLaunchError)))
         }
 
         if Task.isCancelled {
@@ -151,26 +166,49 @@ struct NetworkScanner: NetworkScanning {
 
     // MARK: - discover (ping with TCP fallback)
 
-    /// Returns RTT and (when ICMP succeeded) TTL if the host responded.
-    static func discover(_ ip: String, useTCPFallback: Bool = true) async -> DiscoverResult? {
-        guard !Task.isCancelled else { return nil }
-        if let pinged = await ping(ip) { return pinged }
-        guard !Task.isCancelled else { return nil }
-        return useTCPFallback ? await tcpFallback(ip) : nil
+    struct Discovery: Sendable {
+        var result: DiscoverResult?
+        var pingLaunchError: String?
     }
 
-    /// ICMP ping via /sbin/ping. nil if host did not reply.
-    static func ping(_ ip: String) async -> DiscoverResult? {
-        await runPing(executable: URL(fileURLWithPath: "/sbin/ping"),
-                      arguments: ["-n", "-c", "1", "-W", String(pingTimeoutMs), "-t", "1", ip],
-                      timeout: Double(pingTimeoutMs) / 1000 + 0.1)
+    /// Returns RTT and (when ICMP succeeded) TTL if the host responded.
+    static func discover(_ ip: String, useTCPFallback: Bool = true) async -> DiscoverResult? {
+        await discoverDetailed(ip, useTCPFallback: useTCPFallback).result
+    }
+
+    static func discoverDetailed(_ ip: String, useTCPFallback: Bool = true) async -> Discovery {
+        guard !Task.isCancelled else { return Discovery() }
+        var launchError: String?
+        switch await ping(ip) {
+        case .reply(let pinged): return Discovery(result: pinged)
+        case .noReply: break
+        case .launchFailed(let message): launchError = message
+        }
+        guard !Task.isCancelled else { return Discovery(pingLaunchError: launchError) }
+        let fallback = useTCPFallback ? await tcpFallback(ip) : nil
+        return Discovery(result: fallback, pingLaunchError: launchError)
+    }
+
+    /// ICMP ping via /sbin/ping.
+    static func ping(_ ip: String) async -> PingResult {
+        await runPingDetailed(executable: URL(fileURLWithPath: "/sbin/ping"),
+                              arguments: ["-n", "-c", "1", "-W", String(pingTimeoutMs), "-t", "1", ip],
+                              timeout: Double(pingTimeoutMs) / 1000 + 0.1)
+    }
+
+    /// nil if the host did not reply or ping could not run.
+    static func runPing(executable: URL, arguments: [String], timeout: Double) async -> DiscoverResult? {
+        if case .reply(let result) = await runPingDetailed(executable: executable, arguments: arguments, timeout: timeout) {
+            return result
+        }
+        return nil
     }
 
     /// Bounds the entire process, including route resolution; -W alone only limits reply waiting.
-    static func runPing(executable: URL, arguments: [String], timeout: Double) async -> DiscoverResult? {
+    static func runPingDetailed(executable: URL, arguments: [String], timeout: Double) async -> PingResult {
         let runner = PingProcess()
         return await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<DiscoverResult?, Never>) in
+            await withCheckedContinuation { (continuation: CheckedContinuation<PingResult, Never>) in
                 DispatchQueue.global(qos: .userInitiated).async {
                     let process = Process()
                     process.executableURL = executable
@@ -181,11 +219,11 @@ struct NetworkScanner: NetworkScanning {
 
                     do {
                         guard try runner.start(process) else {
-                            continuation.resume(returning: nil)
+                            continuation.resume(returning: .noReply) // cancelled before launch
                             return
                         }
                     } catch {
-                        continuation.resume(returning: nil)
+                        continuation.resume(returning: .launchFailed("\(executable.path) could not run: \(error.localizedDescription)"))
                         return
                     }
 
@@ -200,24 +238,36 @@ struct NetworkScanner: NetworkScanning {
                           let output = String(data: data, encoding: .utf8),
                           let timeMatch = output.firstMatch(of: #/time=([0-9.]+)\s*ms/#),
                           let rtt = Double(timeMatch.1) else {
-                        continuation.resume(returning: nil)
+                        continuation.resume(returning: .noReply)
                         return
                     }
                     let ttl = output.firstMatch(of: #/ttl=([0-9]+)/#).flatMap { Int($0.1) }
-                    continuation.resume(returning: DiscoverResult(rttMs: rtt, ttl: ttl))
+                    continuation.resume(returning: .reply(DiscoverResult(rttMs: rtt, ttl: ttl)))
                 }
             }
         } onCancel: { runner.cancel() }
     }
 
-    /// Concurrent TCP probe across fallback ports. Returns probe duration in ms if any port handshakes.
-    static func tcpFallback(_ ip: String) async -> DiscoverResult? {
-        let start = Date()
-        let openPorts = await PortScanner.probe(ip, ports: tcpFallbackPorts, timeoutMs: tcpFallbackTimeoutMs)
-        guard !openPorts.isEmpty else { return nil }
-        let elapsedMs = max(0, Date().timeIntervalSince(start) * 1000)
-        guard elapsedMs.isFinite else { return nil }
-        return DiscoverResult(rttMs: elapsedMs, ttl: nil)
+    /// Concurrent TCP probe across fallback ports. The host counts as up as soon as any
+    /// port completes a handshake or answers with a reset (connection refused), and the
+    /// RTT is the time to that first answer rather than to the slowest port.
+    static func tcpFallback(_ ip: String, ports: [Int] = tcpFallbackPorts, timeoutMs: Int = tcpFallbackTimeoutMs) async -> DiscoverResult? {
+        guard !Task.isCancelled, !ports.isEmpty else { return nil }
+        let clock = ContinuousClock()
+        let start = clock.now
+        return await withTaskGroup(of: PortScanner.ProbeOutcome.self) { group in
+            for port in ports {
+                group.addTask { await PortScanner.outcome(ip: ip, port: port, timeoutMs: timeoutMs) }
+            }
+            while let outcome = await group.next() {
+                guard outcome != .noResponse else { continue }
+                let elapsed = start.duration(to: clock.now)
+                group.cancelAll()
+                let ms = Double(elapsed.components.seconds) * 1000 + Double(elapsed.components.attoseconds) / 1e15
+                return DiscoverResult(rttMs: max(0, ms), ttl: nil)
+            }
+            return nil
+        }
     }
 }
 

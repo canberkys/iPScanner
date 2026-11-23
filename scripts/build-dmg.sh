@@ -2,9 +2,11 @@
 # Signed release pipeline shared by local builds and GitHub Actions.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-VERSION="${1:-1.3.1}"
+VERSION="${1:?Usage: build-dmg.sh X.Y.Z}"
 VERSION="${VERSION#v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected X.Y.Z version' >&2; exit 1; }
+# Fail before signing if the tag and project.yml disagree or Sparkle would skip this build.
+python3 scripts/check-release-version.py "$VERSION"
 : "${SIGNING_IDENTITY:?Set SIGNING_IDENTITY to your Developer ID Application identity}"
 : "${NOTARY_PROFILE:?Set NOTARY_PROFILE to a notarytool keychain profile}"
 NOTARY_ARGS=(--keychain-profile "$NOTARY_PROFILE")

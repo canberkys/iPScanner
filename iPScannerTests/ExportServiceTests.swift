@@ -173,4 +173,15 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(decoded[0].label, "Router")
         XCTAssertEqual(decoded[0].openPorts, [80, 443])
     }
+
+    // MARK: - Formula injection (security)
+
+    func testCSVNeutralizesFormulaCells() {
+        XCTAssertEqual(ExportService.escape("=HYPERLINK(\"http://x\")"), "\"'=HYPERLINK(\"\"http://x\"\")\"")
+        for trigger in ["+1", "-1", "@SUM(A1)", "\tcmd"] {
+            XCTAssertTrue(ExportService.escape(trigger).hasPrefix("'"), trigger)
+        }
+        XCTAssertEqual(ExportService.escape("Router"), "Router")
+        XCTAssertEqual(ExportService.escape("a-b"), "a-b")
+    }
 }

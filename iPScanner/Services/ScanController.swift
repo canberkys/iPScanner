@@ -50,6 +50,10 @@ final class ScanController {
         KeyPathComparator(\Host.ipNumeric, order: .forward)
     ]
     var labels: [String: String] = [:]   // anchor → label (anchor = MAC ?? IP)
+    /// Labels carried by an opened snapshot. Shown with its rows but not persisted
+    /// unless the user imports them, so opening someone else's file cannot silently
+    /// change this Mac's labels.
+    private(set) var snapshotLabels: [String: String] = [:]
     var savedRanges: [SavedRange] = []
     var showDeadHosts: Bool = false
     var filterHasOpenPorts: Bool = false
@@ -100,6 +104,7 @@ final class ScanController {
         self.savedRanges = PersistedStore.loadRanges().sorted {
             $0.displayTitle.localizedCaseInsensitiveCompare($1.displayTitle) == .orderedAscending
         }
+        self.lastError = PersistedStore.consumeRecoveryNotice()
     }
 
     private var hostByIp: [String: Host] = [:]
@@ -155,13 +160,29 @@ final class ScanController {
 
     func label(for host: Host) -> String? {
         MACAddress.label(in: labels, mac: host.mac, ip: host.ip)
+            ?? (snapshotLabels.isEmpty ? nil : MACAddress.label(in: snapshotLabels, mac: host.mac, ip: host.ip))
+    }
+
+    /// Snapshot labels that would add a label this Mac does not have yet.
+    var importableSnapshotLabelCount: Int {
+        snapshotLabels.keys.filter { labels[$0] == nil }.count
+    }
+
+    func importSnapshotLabels() {
+        for (key, value) in snapshotLabels where labels[key] == nil { labels[key] = value }
+        snapshotLabels = [:]
+        PersistedStore.saveLabels(labels)
     }
 
     func setLabel(_ value: String?, for host: Host) {
         let key = anchor(for: host)
         if let mac = host.mac, let address = MACAddress(mac) {
             for oldKey in labels.keys.filter({ MACAddress($0) == address }) { labels.removeValue(forKey: oldKey) }
+            for oldKey in snapshotLabels.keys.filter({ MACAddress($0) == address }) { snapshotLabels.removeValue(forKey: oldKey) }
         }
+        // An explicit edit replaces any label shown from an opened snapshot.
+        snapshotLabels.removeValue(forKey: key)
+        snapshotLabels.removeValue(forKey: host.ip)
         // Retire an IP fallback after enrichment supplies the stable MAC anchor.
         labels.removeValue(forKey: host.ip)
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -295,6 +316,7 @@ final class ScanController {
         lastError = nil
         hosts = []
         hostByIp = [:]
+        snapshotLabels = [:]
         warnings = []
         diff = nil
         cancelRescanTimer()
@@ -407,6 +429,12 @@ final class ScanController {
 
     func cancelPortScan() { stop() }
 
+    /// Ports outside this scan keep their earlier result; ports inside it take the new one.
+    /// A Web-preset scan therefore keeps port 22 found earlier, and clears 80 if it closed.
+    nonisolated static func mergePortScan(previous: [Int], scanned: [Int], open: [Int]) -> [Int] {
+        Set(previous).subtracting(scanned).union(open).sorted()
+    }
+
     private func executePortScan(targets: [Host], ports: [Int], fetchBanners: Bool, runID: UUID) async {
         guard generation == runID, !Task.isCancelled else { return }
         phase = .ports
@@ -425,7 +453,8 @@ final class ScanController {
             while let (id, openPorts) = await group.next() {
                 if Task.isCancelled || generation != runID { group.cancelAll(); break }
                 if let idx = self.hosts.firstIndex(where: { $0.id == id }) {
-                    self.hosts[idx].openPorts = openPorts
+                    self.hosts[idx].openPorts = Self.mergePortScan(
+                        previous: self.hosts[idx].openPorts, scanned: ports, open: openPorts)
                     self.hostByIp[self.hosts[idx].ip] = self.hosts[idx]
                 }
                 completed += 1
@@ -510,7 +539,9 @@ final class ScanController {
         return ScanSnapshot(
             version: ScanSnapshot.currentVersion,
             createdAt: Date(),
-            rangeInput: rangeInput,
+            // An imported list is recorded as the targets themselves, so reopening
+            // the snapshot puts a rescannable range in the field instead of stale text.
+            rangeInput: importedTargets.map { IPv4.collapsedRangeInput($0.targets) } ?? rangeInput,
             hosts: records,
             labels: relevantLabels
         )
@@ -568,10 +599,7 @@ final class ScanController {
         // A hand-edited or externally produced snapshot may repeat an IP; keep the
         // last record for that IP rather than crashing on the duplicate key.
         hostByIp = Dictionary(restored.map { ($0.ip, $0) }, uniquingKeysWith: { _, last in last })
-        for (key, value) in snapshot.labels where labels[key] == nil {
-            labels[key] = value
-        }
-        PersistedStore.saveLabels(labels)
+        snapshotLabels = snapshot.labels
         selection = []
         elapsed = 0
         startDate = nil
@@ -628,9 +656,15 @@ final class ScanController {
         hosts[idx2].rttMs = result.rttMs
         hosts[idx2].ttl = result.ttl
         hosts[idx2].hostname = hostname
-        hosts[idx2].mac = mac
-        hosts[idx2].vendor = resolution.vendor
-        hosts[idx2].vendorStatus = mac == nil && arp.error != nil ? .queryFailed : resolution.status
+        if mac == nil, hosts[idx2].mac != nil {
+            // ARP missed this time (common on macOS 27 or across routers). Keep the
+            // known MAC so its label and vendor stay attached, marked as historical.
+            hosts[idx2].vendorStatus = .historical
+        } else {
+            hosts[idx2].mac = mac
+            hosts[idx2].vendor = resolution.vendor
+            hosts[idx2].vendorStatus = mac == nil && arp.error != nil ? .queryFailed : resolution.status
+        }
         hosts[idx2].netbiosName = netbios?.computerName
         hosts[idx2].workgroup = netbios?.workgroup
         hosts[idx2].openPorts = []
@@ -649,7 +683,7 @@ final class ScanController {
 
     private func mergeWarning(_ w: ScanWarning) {
         switch w {
-        case .arpFailed:
+        case .arpFailed, .pingUnavailable:
             if !warnings.contains(w) { warnings.append(w) }
         case .arpEmpty:
             if !warnings.contains(where: { if case .arpEmpty = $0 { return true } else { return false } }) {

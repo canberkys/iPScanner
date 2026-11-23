@@ -94,4 +94,12 @@ final class LocalServiceTests: XCTestCase {
         XCTAssertNil(WakeOnLAN.magicPacket(mac: "ff:ff:ff:ff:ff:ff"))
         XCTAssertNil(WakeOnLAN.magicPacket(mac: "28:6f:b9:00:00:ZZ"))
     }
+
+    func testBannerRedirectsStayOnProbedHost() {
+        let origin = URL(string: "http://192.168.1.1/")
+        XCTAssertTrue(BannerSessionDelegate.allowsRedirect(from: origin, to: URL(string: "https://192.168.1.1:8443/login")))
+        XCTAssertFalse(BannerSessionDelegate.allowsRedirect(from: origin, to: URL(string: "https://cloud.example.com/")))
+        XCTAssertFalse(BannerSessionDelegate.allowsRedirect(from: origin, to: URL(string: "http://192.168.1.2/")))
+        XCTAssertFalse(BannerSessionDelegate.allowsRedirect(from: nil, to: origin))
+    }
 }
