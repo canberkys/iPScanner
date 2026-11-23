@@ -45,6 +45,7 @@ struct IPScannerCLI {
         let scanner = NetworkScanner(profile: args.profile)
         var aliveByIP: [String: Host] = [:]
         var lastReportedProgress = 0
+        var discoveryIncomplete = false
 
         for await event in scanner.scan(addresses: targets) {
             switch event {
@@ -64,7 +65,11 @@ struct IPScannerCLI {
                     }
                 }
             case .warning(let warning):
-                if verbose {
+                if case .pingUnavailable(let message) = warning {
+                    // Not limited to --verbose: without ping, results are incomplete.
+                    discoveryIncomplete = true
+                    stderr.write(Data("ipscanner: warning: \(message)\n".utf8))
+                } else if verbose {
                     stderr.write(Data("warning: \(warning.label)\n".utf8))
                 }
             case .done:
@@ -123,7 +128,8 @@ struct IPScannerCLI {
             print(outputString, terminator: "")
         }
 
-        exit(0)
+        // Results were still written, but exit 2 tells scripts discovery was incomplete.
+        exit(discoveryIncomplete ? 2 : 0)
     }
 
     // MARK: - Helpers

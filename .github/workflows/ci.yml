@@ -21,6 +21,13 @@ jobs:
       - name: Test bundle collision guard
         run: bash scripts/tests/bundle-layout.sh
 
+      - name: Check release version consistency
+        run: python3 scripts/check-release-version.py
+
+      - name: Test feedback relay
+        working-directory: feedback-relay
+        run: npm test
+
       - name: Generate Xcode project
         run: xcodegen generate
 

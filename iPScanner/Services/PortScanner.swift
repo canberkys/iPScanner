@@ -56,25 +56,44 @@ enum PortScanner {
         return open.sorted()
     }
 
+    /// Result of a single TCP connection attempt.
+    /// `.refused` means the host answered with a TCP reset: the port is closed but the
+    /// host is up, which matters for discovering devices that block ICMP.
+    enum ProbeOutcome: Sendable, Equatable {
+        case open
+        case refused
+        case noResponse
+    }
+
     private static func probeOne(ip: String, port: Int, timeoutMs: Int) async -> Bool {
+        await outcome(ip: ip, port: port, timeoutMs: timeoutMs) == .open
+    }
+
+    static func outcome(ip: String, port: Int, timeoutMs: Int) async -> ProbeOutcome {
         guard (1...65535).contains(port),
-              let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return false }
+              let nwPort = NWEndpoint.Port(rawValue: UInt16(port)) else { return .noResponse }
 
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(ip), port: nwPort)
         let connection = NWConnection(to: endpoint, using: .tcp)
         let queue = DispatchQueue.global(qos: .userInitiated)
 
         return await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            await withCheckedContinuation { (continuation: CheckedContinuation<ProbeOutcome, Never>) in
                 let state = ProbeState(connection: connection, continuation: continuation)
 
                 connection.stateUpdateHandler = { newState in
                     switch newState {
                     case .ready:
-                        state.finish(true)
-                    case .failed, .cancelled:
-                        state.finish(false)
-                    case .setup, .preparing, .waiting:
+                        state.finish(.open)
+                    case .waiting(let error):
+                        // Network.framework reports a TCP reset as waiting(ECONNREFUSED)
+                        // and would otherwise keep retrying until the timeout.
+                        if isRefused(error) { state.finish(.refused) }
+                    case .failed(let error):
+                        state.finish(isRefused(error) ? .refused : .noResponse)
+                    case .cancelled:
+                        state.finish(.noResponse)
+                    case .setup, .preparing:
                         break
                     @unknown default:
                         break
@@ -82,27 +101,32 @@ enum PortScanner {
                 }
 
                 queue.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
-                    state.finish(false)
+                    state.finish(.noResponse)
                 }
 
-                if Task.isCancelled { state.finish(false) }
+                if Task.isCancelled { state.finish(.noResponse) }
                 else { connection.start(queue: queue) }
             }
         } onCancel: { connection.cancel() }
+    }
+
+    static func isRefused(_ error: NWError) -> Bool {
+        if case .posix(let code) = error { return code == .ECONNREFUSED }
+        return false
     }
 
     private final class ProbeState: @unchecked Sendable {
         private let lock = NSLock()
         private var done = false
         private let connection: NWConnection
-        private let continuation: CheckedContinuation<Bool, Never>
+        private let continuation: CheckedContinuation<ProbeOutcome, Never>
 
-        init(connection: NWConnection, continuation: CheckedContinuation<Bool, Never>) {
+        init(connection: NWConnection, continuation: CheckedContinuation<ProbeOutcome, Never>) {
             self.connection = connection
             self.continuation = continuation
         }
 
-        func finish(_ value: Bool) {
+        func finish(_ value: ProbeOutcome) {
             lock.lock()
             defer { lock.unlock() }
             guard !done else { return }

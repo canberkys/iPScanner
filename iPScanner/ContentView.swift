@@ -9,6 +9,8 @@ struct ContentView: View {
     @State var inspectorPresented = false
     @State var detailWidth: CGFloat = 800
     @State var controller = ScanController()
+    /// Identifies this window's menu actions (`ScanCommandActions` equality).
+    @State private var windowID = UUID()
     @State var mdns = MDNSDiscovery()
     @State var showingPortScan = false
     @State var portScanTargetIDs: Set<Host.ID> = []
@@ -164,27 +166,19 @@ struct ContentView: View {
             controller.detectDefaultSubnetIfNeeded()
             mdns.start()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandRescan)) { _ in
-            if controller.canStart { controller.start() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandExportCSV)) { _ in
-            if !controller.hosts.isEmpty { saveCSV() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandExportJSON)) { _ in
-            if !controller.hosts.isEmpty { saveJSON() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandOpenSnapshot)) { _ in
-            openSnapshot()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandSaveSnapshot)) { _ in
-            if !controller.hosts.isEmpty { saveSnapshot() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandCompareSnapshot)) { _ in
-            openComparisonBaseline()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .iPScannerCommandClearComparison)) { _ in
-            controller.clearComparison()
-        }
+        .focusedSceneValue(\.scanCommands, ScanCommandActions(
+            windowID: windowID,
+            canRescan: controller.canStart,
+            hasResults: !controller.hosts.isEmpty,
+            hasComparison: controller.diff != nil,
+            rescan: { if controller.canStart { controller.start() } },
+            openSnapshot: { openSnapshot() },
+            saveSnapshot: { if !controller.hosts.isEmpty { saveSnapshot() } },
+            compare: { openComparisonBaseline() },
+            clearComparison: { controller.clearComparison() },
+            exportCSV: { if !controller.hosts.isEmpty { saveCSV() } },
+            exportJSON: { if !controller.hosts.isEmpty { saveJSON() } }
+        ))
         .sheet(item: $labelingHost) { host in
             HostLabelSheet(host: host, initialValue: controller.label(for: host) ?? "") { value in
                 // Enrichment may have learned a MAC while the editor was open.
@@ -725,12 +719,12 @@ struct ContentView: View {
 
     // MARK: - Selection helpers
 
-    func copySelectedIPs() {
+    func selectedIPsForCopy() -> [NSItemProvider] {
         let ips = controller.hosts
             .filter { controller.selection.contains($0.id) }
             .map(\.ip)
-        guard !ips.isEmpty else { return }
-        HostActions.copy(ips.joined(separator: "\n"))
+        guard !ips.isEmpty else { return [] }
+        return [NSItemProvider(object: ips.joined(separator: "\n") as NSString)]
     }
 
     // MARK: - Snapshot save / load
@@ -747,6 +741,29 @@ struct ContentView: View {
         }
     }
 
+    /// Asks before saving labels from someone else's scan file. NSAlert instead of
+    /// SwiftUI's .alert: SwiftUI makes the first non-cancel button the Return
+    /// default and ignores .keyboardShortcut, so a stray Return would save them.
+    func offerSnapshotLabelImport() {
+        let count = controller.importableSnapshotLabelCount
+        guard count > 0 else { return }
+        let alert = NSAlert()
+        alert.messageText = "Keep labels from this file?"
+        alert.informativeText = "This scan file contains \(count) label\(count == 1 ? "" : "s") you don't have. They are shown with these results only. Keep them to save them on this Mac; your existing labels are not changed."
+        alert.addButton(withTitle: "Not Now")            // Return
+        let keep = alert.addButton(withTitle: "Keep Labels")
+        keep.keyEquivalent = ""                          // click only
+        let controller = controller
+        let handle: (NSApplication.ModalResponse) -> Void = { response in
+            if response == .alertSecondButtonReturn { controller.importSnapshotLabels() }
+        }
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            alert.beginSheetModal(for: window, completionHandler: handle)
+        } else {
+            handle(alert.runModal())
+        }
+    }
+
     func openSnapshot() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
@@ -756,6 +773,7 @@ struct ContentView: View {
                 let data = try Data(contentsOf: url)
                 let snapshot = try SnapshotIO.decode(data)
                 controller.applySnapshot(snapshot)
+                offerSnapshotLabelImport()
             } catch {
                 controller.reportError("Failed to read scan file: \(error.localizedDescription)")
             }

@@ -173,4 +173,16 @@ final class ScanRangeTests: XCTestCase {
             XCTAssertEqual(IPv4.string(from: value), ip)
         }
     }
+
+    // MARK: - Canonical IPv4 (security)
+
+    func testIPv4RejectsNonCanonicalForms() {
+        // Leading zeros can be read as octal by browsers/ssh and reach another host.
+        for bad in ["010.0.0.1", "1.2..3.4", "1.2.3.4.", ".1.2.3.4", "+1.2.3.4", "1.2.3.-4",
+                    "1.2.3.4 ", " 1.2.3.4", "00.1.2.3", "1.2.3.0004", "1.2.3.256", "１.2.3.4"] {
+            XCTAssertNil(IPv4.uint32(from: bad), bad)
+        }
+        XCTAssertEqual(IPv4.uint32(from: "10.0.0.0"), 0x0A000000)
+        XCTAssertNil(ScanRange.parse("192.168.01.0/24"))
+    }
 }

@@ -13,7 +13,7 @@ body:
     attributes:
       label: iPScanner version
       description: From the About panel (iPScanner menu → About iPScanner) or the `.dmg` filename.
-      placeholder: "1.3.0"
+      placeholder: "1.3.2"
     validations:
       required: true
 

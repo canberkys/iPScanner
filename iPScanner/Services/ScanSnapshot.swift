@@ -80,7 +80,26 @@ enum SnapshotIO {
         return try encoder.encode(snapshot)
     }
 
+    enum SnapshotError: LocalizedError, Equatable {
+        case unsupportedVersion(Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedVersion(let version):
+                return "This scan file uses format \(version), which is newer than this version of iPScanner supports (\(ScanSnapshot.currentVersion)). Update iPScanner and try again."
+            }
+        }
+    }
+
+    private struct VersionProbe: Decodable { let version: Int }
+
     static func decode(_ data: Data) throws -> ScanSnapshot {
+        // Check the format first so a newer file gets a clear message instead of a
+        // generic decoding error or a partially understood load.
+        if let probe = try? JSONDecoder().decode(VersionProbe.self, from: data),
+           probe.version > ScanSnapshot.currentVersion {
+            throw SnapshotError.unsupportedVersion(probe.version)
+        }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(ScanSnapshot.self, from: data)

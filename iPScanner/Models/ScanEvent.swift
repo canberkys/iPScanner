@@ -14,6 +14,8 @@ enum ScanWarning: Sendable, Hashable {
     case arpEmpty
     /// At least one banner fetch (HTTP title / SSH greeting) failed.
     case bannerFetchFailures(count: Int)
+    /// /sbin/ping could not be started, so ICMP results are missing.
+    case pingUnavailable(String)
 
     var label: String {
         switch self {
@@ -22,6 +24,8 @@ enum ScanWarning: Sendable, Hashable {
             return "MAC addresses unavailable (ARP table empty)"
         case .bannerFetchFailures(let n):
             return "\(n) banner fetch\(n == 1 ? "" : "es") failed"
+        case .pingUnavailable:
+            return "ICMP ping could not run"
         }
     }
 
@@ -35,6 +39,8 @@ enum ScanWarning: Sendable, Hashable {
             return "No MAC addresses returned from arp(8). Hosts behind a router or first-time scans on a quiet network may take a second pass."
         case .bannerFetchFailures:
             return "HTTP title or SSH greeting could not be read. Banners are best-effort enrichment and don't affect host discovery."
+        case .pingUnavailable(let message):
+            return "\(message). Hosts were checked with TCP probes only (when the profile allows it), so devices that answer only to ping are reported as unresponsive."
         }
     }
 }

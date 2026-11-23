@@ -141,7 +141,7 @@ python3 scripts/build-vendor-db.py --check
 (cd feedback-relay && npm test)
 ```
 
-The latest local validation passed **190 application tests and 6 Worker tests**.
+The latest local validation passed **217 application tests and 9 Worker tests**.
 See the [acceptance table](docs/acceptance-1.3.0.md) for tested methods and limitations;
 a universal build is not proof of testing on Intel hardware or every supported OS.
 
@@ -157,8 +157,9 @@ a universal build is not proof of testing on Intel hardware or every supported O
 
 ## What's next
 
-Continue the remaining compatibility and accessibility checks. History, IPv6 and menu-bar mode
-are outside the current update. [Follow-up work](docs/next-phase-plan-tr.md).
+The phased roadmap covers urgent fixes (1.3.2), performance and architecture,
+interface, accessibility and localization work, new features such as device history,
+alerts, a menu-bar mode and IPv6, and CI/test hardening. [Roadmap (Turkish)](docs/roadmap-tr.md).
 
 ## Project
 

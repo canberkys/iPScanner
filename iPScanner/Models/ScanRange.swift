@@ -96,15 +96,42 @@ struct ScanRange: Hashable {
 }
 
 enum IPv4 {
+    /// Parses canonical dotted-decimal IPv4 only: exactly four parts, ASCII digits,
+    /// no signs, no empty parts and no leading zeros. Values like `010.0.0.1` are
+    /// rejected because browsers, ssh and ping may read them as octal and reach a
+    /// different host than the one displayed.
     static func uint32(from ip: String) -> UInt32? {
-        let parts = ip.split(separator: ".")
+        let parts = ip.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 4 else { return nil }
         var result: UInt32 = 0
         for part in parts {
-            guard let octet = UInt8(part) else { return nil }
+            guard let octet = canonicalOctet(part) else { return nil }
             result = (result << 8) | UInt32(octet)
         }
         return result
+    }
+
+    private static func canonicalOctet(_ part: Substring) -> UInt8? {
+        let bytes = part.utf8
+        guard (1...3).contains(bytes.count),
+              bytes.allSatisfy({ $0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9") }) else { return nil }
+        if bytes.count > 1 && bytes.first == UInt8(ascii: "0") { return nil }
+        return UInt8(part)
+    }
+
+    /// Collapses addresses into the range syntax `ScanRange.parseAll` accepts,
+    /// e.g. ["10.0.0.1", "10.0.0.2", "10.0.0.9"] → "10.0.0.1-10.0.0.2, 10.0.0.9".
+    static func collapsedRangeInput(_ addresses: [String]) -> String {
+        let values = Set(addresses.compactMap(uint32(from:))).sorted()
+        guard var start = values.first else { return "" }
+        var end = start
+        var chunks: [String] = []
+        func flush() { chunks.append(start == end ? string(from: start) : "\(string(from: start))-\(string(from: end))") }
+        for value in values.dropFirst() {
+            if value == end &+ 1 { end = value } else { flush(); start = value; end = value }
+        }
+        flush()
+        return chunks.joined(separator: ", ")
     }
 
     static func string(from value: UInt32) -> String {
