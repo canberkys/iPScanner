@@ -141,7 +141,7 @@ python3 scripts/build-vendor-db.py --check
 (cd feedback-relay && npm test)
 ```
 
-The latest local validation passed **190 application tests and 6 Worker tests**.
+The latest local validation passed **217 application tests and 9 Worker tests**.
 See the [acceptance table](docs/acceptance-1.3.0.md) for tested methods and limitations;
 a universal build is not proof of testing on Intel hardware or every supported OS.
 
