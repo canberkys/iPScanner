@@ -25,7 +25,12 @@ Released 2026-11-24. A patch for scan accuracy, data safety and security.
 
 ## Update and compatibility
 
-Use **Check for Updates…** in iPScanner 1.3.0 or 1.3.1 to install this version.
+**Install this version manually once.** The update signing key changed, so
+iPScanner 1.3.0 and 1.3.1 cannot install 1.3.2 by themselves. **Check for
+Updates…** in those versions announces 1.3.2 and opens this page with
+**Learn More…**. Download the DMG and drag iPScanner into Applications,
+replacing the old copy. Later updates install from inside the app again.
+
 Universal Apple Silicon + Intel; macOS 14.4 deployment target. Developer ID
 signed and notarized, with an Ed25519-signed update archive. Existing settings,
 labels and snapshot formats are retained.
@@ -35,5 +40,5 @@ labels and snapshot formats are retained.
 217 automated application tests and 9 feedback relay tests passed, including 16
 new regression tests. Menu commands, copying, the label prompt and local web
 titles were checked in the running app. Wake-on-LAN has not yet been confirmed
-on a physical device. Production 1.3.1 → 1.3.2 in-app installation is not yet
-claimed as tested; the owner will perform it after publication.
+on a physical device. iPScanner 1.3.1 was checked against a test feed and showed the
+1.3.2 announcement with Learn More instead of an install error.

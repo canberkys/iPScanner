@@ -89,6 +89,8 @@ Opening details for the first row runs the ping monitor against localhost only.
   Manual checks are available in Help and Settings.
 - **In-app installation:** review release notes, download and install a signed update.
   Install the latest DMG manually once to receive future releases through Sparkle.
+  Users of 1.3.1 or older must also install 1.3.2 manually once: the update signing
+  key changed, so their update check links to the download page instead.
 - **Feedback:** review your draft in the app before sending it through Cloudflare
   to a **public GitHub issue**. A GitHub account is not required to submit in-app.
 

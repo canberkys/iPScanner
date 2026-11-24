@@ -14,7 +14,15 @@ in Sparkle's native window, which also shows release notes.
 - Ed25519 update signatures use the **ipscanner** Keychain account. The private key
   is never embedded or committed. `SUPublicEDKey` is the public verification key.
 - `SUVerifyUpdateBeforeExtraction` requires signature verification before unpacking.
-- Build numbers must increase; 1.3.0 uses build **3** and 1.3.1 uses build **4**.
+- Build numbers must increase; 1.3.0 uses build **3**, 1.3.1 build **4** and 1.3.2 build **5**.
+- **Key rotation in 1.3.2:** the private key behind 1.3.1's public key was lost, so
+  1.3.2 ships a new `SUPublicEDKey`. Builds below 5 cannot verify the new
+  signatures. `generate-update-feed.sh` therefore adds
+  `<sparkle:informationalUpdate><sparkle:belowVersion>5</sparkle:belowVersion>`
+  to every item: those builds see the notes and a Learn More link to the release
+  page instead of an install that would fail. Keep this for every future release.
+  Back up the private key (`generate_keys --account ipscanner -x FILE`) to a
+  password manager; losing it again forces another manual install.
 - Debug disables Hardened Runtime for ad-hoc local builds; Release keeps it enabled.
 
 ## Release order

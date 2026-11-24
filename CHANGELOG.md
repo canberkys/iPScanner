@@ -31,6 +31,7 @@ All notable changes to iPScanner are documented here. Format loosely follows
 ### Changed
 
 - Release builds and CI check that the tag matches `project.yml` and that the build number is newer than the published appcast, so Sparkle cannot silently skip an update.
+- New update signing key. 1.3.0 and 1.3.1 cannot verify archives signed with it, so their update check announces 1.3.2 with a link to the release page; install 1.3.2 manually once. The update feed marks every item informational for builds below 5.
 
 ## [1.3.1] — 2026-09-28
 
