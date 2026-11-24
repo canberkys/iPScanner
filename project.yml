@@ -59,7 +59,7 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         SUFeedURL: https://raw.githubusercontent.com/canberkys/iPScanner/main/appcast.xml
-        SUPublicEDKey: lvTv3xWikHyIAqm62expMC6zDTJWOnms6Lm1+JTg5tk=
+        SUPublicEDKey: 3OCQ09Gs7qW5jnR+Om4W1cL988qM9wsIxQJagVpGS1s=
         SUScheduledCheckInterval: 86400
         SUAutomaticallyUpdate: false
         SUVerifyUpdateBeforeExtraction: true

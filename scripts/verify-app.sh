@@ -6,7 +6,7 @@ GUI="$APP/Contents/MacOS/iPScanner"
 test -f "$APP/Contents/Resources/Sparkle-LICENSE.txt"
 test -d "$APP/Contents/Frameworks/Sparkle.framework"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$APP/Contents/Info.plist")" == https://raw.githubusercontent.com/canberkys/iPScanner/main/appcast.xml ]]
-[[ "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$APP/Contents/Info.plist")" == lvTv3xWikHyIAqm62expMC6zDTJWOnms6Lm1+JTg5tk= ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$APP/Contents/Info.plist")" == 3OCQ09Gs7qW5jnR+Om4W1cL988qM9wsIxQJagVpGS1s= ]]
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :SUVerifyUpdateBeforeExtraction' "$APP/Contents/Info.plist")" == true ]]
 CLI="$APP/Contents/Helpers/ipscanner"
 "$(dirname "$0")/check-bundle-layout.sh" "$APP"
